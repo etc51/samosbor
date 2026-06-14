@@ -82,6 +82,12 @@
 - фильтр ликвидности через средний оборот
 - optional external context provider для новостей, макро и social data
 
+Дополнительный TA-режим:
+
+- стиль `ema_adx_macd` включает `EMA`, `ADX`, `RSI` и `MACD` через `pandas-ta`
+- `require_breakout` позволяет оставить жёсткий пробойный фильтр или отключить его для более раннего входа
+- стиль выбирается через `strategy.style` в TOML-конфиге
+
 ### 5. Риск-менеджмент
 
 Файл: [src/samosbor/risk/manager.py](/D:/projects/samosbor/src/samosbor/risk/manager.py)
@@ -152,6 +158,7 @@
 - перебор подмножеств инструментов
 - ranking кандидатов по composite score
 - Monte Carlo по наблюдаемым месячным доходностям
+- отдельные research-конфиги под локальный parquet-архив на `D:`
 
 CLI:
 
@@ -181,3 +188,5 @@ CLI-сценарии:
 - Monte-Carlo и stress testing
 - dashboard/monitoring
 - feature store и ML-модели поверх базовой стратегии
+- ускорение TA-режима через кеширование/precompute индикаторов для крупных optimizer-сеток
+- futures-aware модель маржи и риска вместо приближённого notional-подхода

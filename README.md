@@ -24,6 +24,8 @@
 - `configs/paper.toml` — пример конфигурации
 - `configs/local_pack_research.toml` — research-конфиг для локального архива свечей на `D:`
 - `configs/local_pack_usdrubf_candidate.toml` — конфиг лучшего кандидата из локальной оптимизации
+- `configs/local_pack_cnyrubf_ta_candidate.toml` — TA-кандидат на `CNYRUBF`
+- `configs/local_pack_fx_index_ta_aggressive.toml` — более агрессивный TA-портфель `USDRUBF + CNYRUBF + IMOEXF`
 - `docs/architecture.md` — архитектура и логика работы
 - `requirements-tbank.txt` — установка актуального SDK Т-Банка
 - `tests/` — smoke/unit tests
@@ -88,6 +90,11 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_research.toml monte-carlo
 ```
 
+Поддерживаемые стили стратегии:
+
+- `sma_breakout` — исходный трендовый режим на SMA + breakout + ATR
+- `ema_adx_macd` — режим на `pandas-ta` с EMA, ADX, RSI и MACD-фильтрами
+
 Что делает локальный провайдер:
 
 - читает `parquet` из `data_pack/candles_1m`
@@ -112,6 +119,17 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_usdrubf_candidate.toml backtest
 .\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_usdrubf_candidate.toml monte-carlo
 ```
+
+Новый TA-режим на `pandas-ta` дал более сильный профиль на валютных фьючерсах:
+
+- `CNYRUBF`, конфиг [configs/local_pack_cnyrubf_ta_candidate.toml](/D:/projects/samosbor/configs/local_pack_cnyrubf_ta_candidate.toml):
+  `+20.262% total return`, `4.054% max drawdown`, `Sharpe 1.542`, `1.532% avg monthly return`
+- Monte Carlo для этого кандидата:
+  `98.3%` вероятность положительного результата за 12 месяцев, но `0.0%` вероятность достижения целевых `5%` среднего месячного дохода
+- Агрессивный портфель [configs/local_pack_fx_index_ta_aggressive.toml](/D:/projects/samosbor/configs/local_pack_fx_index_ta_aggressive.toml):
+  `USDRUBF + CNYRUBF + IMOEXF`, `+41.671% total return`, `10.77% max drawdown`, `3.09% avg monthly return`
+
+Итог текущего этапа: качество стратегии выросло, но цель `5%` в месяц пока не достигнута даже в усиленном портфельном профиле.
 
 ## Безопасность
 

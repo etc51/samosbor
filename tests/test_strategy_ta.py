@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import unittest
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
+
+from samosbor.config import StrategySection
+from samosbor.domain import Candle, Instrument, InstrumentType, SignalDirection
+from samosbor.strategy.trend_following import TrendFollowingStrategy
+
+
+def make_candles(*, trend: float, final_close: float | None = None) -> list[Candle]:
+    candles: list[Candle] = []
+    ts = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    price = 100.0
+    for index in range(80):
+        close = price + trend
+        if final_close is not None and index == 79:
+            close = final_close
+        candles.append(
+            Candle(
+                timestamp=ts,
+                open=price,
+                high=max(price, close) + 0.5,
+                low=min(price, close) - 0.5,
+                close=close,
+                volume=2_000_000,
+            )
+        )
+        ts += timedelta(hours=1)
+        price = close
+    return candles
+
+
+class TrendFollowingTATest(unittest.TestCase):
+    def setUp(self):
+        self.instrument = Instrument(symbol="CNYRUBF", instrument_type=InstrumentType.FUTURE, lot_size=1)
+
+    def test_ema_adx_macd_can_open_long_without_breakout(self):
+        candles = make_candles(trend=0.2, final_close=114.5)
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                style="ema_adx_macd",
+                require_breakout=False,
+                min_liquidity_rub=1.0,
+                min_trend_strength=0.002,
+            ),
+            timeframe="hour",
+        )
+        with patch.object(
+            TrendFollowingStrategy,
+            "_ta_features",
+            return_value={
+                "ema_fast": 113.0,
+                "ema_slow": 110.0,
+                "rsi": 61.0,
+                "macd": 1.2,
+                "macd_hist": 0.4,
+                "macd_signal": 0.8,
+                "adx": 24.0,
+                "dmp": 27.0,
+                "dmn": 15.0,
+            },
+        ):
+            signal = strategy.generate_signal(self.instrument, candles)
+
+        self.assertIsNotNone(signal)
+        self.assertEqual(signal.direction, SignalDirection.LONG)
+        self.assertGreater(signal.take_profit, signal.entry_price)
+
+    def test_ema_adx_macd_breakout_filter_can_block_long_entry(self):
+        candles = make_candles(trend=0.2, final_close=114.5)
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                style="ema_adx_macd",
+                require_breakout=True,
+                min_liquidity_rub=1.0,
+                min_trend_strength=0.002,
+            ),
+            timeframe="hour",
+        )
+        with patch.object(
+            TrendFollowingStrategy,
+            "_ta_features",
+            return_value={
+                "ema_fast": 113.0,
+                "ema_slow": 110.0,
+                "rsi": 61.0,
+                "macd": 1.2,
+                "macd_hist": 0.4,
+                "macd_signal": 0.8,
+                "adx": 24.0,
+                "dmp": 27.0,
+                "dmn": 15.0,
+            },
+        ):
+            signal = strategy.generate_signal(self.instrument, candles)
+
+        self.assertIsNone(signal)
+
+    def test_ema_adx_macd_can_open_short(self):
+        candles = make_candles(trend=-0.2, final_close=85.5)
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                style="ema_adx_macd",
+                require_breakout=False,
+                min_liquidity_rub=1.0,
+                min_trend_strength=0.002,
+            ),
+            timeframe="hour",
+        )
+        with patch.object(
+            TrendFollowingStrategy,
+            "_ta_features",
+            return_value={
+                "ema_fast": 87.0,
+                "ema_slow": 90.0,
+                "rsi": 39.0,
+                "macd": -1.2,
+                "macd_hist": -0.4,
+                "macd_signal": -0.8,
+                "adx": 24.0,
+                "dmp": 14.0,
+                "dmn": 28.0,
+            },
+        ):
+            signal = strategy.generate_signal(self.instrument, candles)
+
+        self.assertIsNotNone(signal)
+        self.assertEqual(signal.direction, SignalDirection.SHORT)
+        self.assertLess(signal.take_profit, signal.entry_price)
+
+    def test_unknown_strategy_style_raises(self):
+        with self.assertRaises(ValueError):
+            TrendFollowingStrategy(
+                StrategySection(style="unknown-style"),
+                timeframe="hour",
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

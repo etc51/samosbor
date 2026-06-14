@@ -50,16 +50,28 @@ class DataSection:
 
 @dataclass(frozen=True)
 class StrategySection:
+    style: str = "sma_breakout"
     fast_window: int = 20
     slow_window: int = 50
     atr_window: int = 14
     volume_window: int = 20
     breakout_window: int = 20
+    require_breakout: bool = True
     atr_stop_multiple: float = 2.0
     reward_to_risk: float = 2.0
     min_trend_strength: float = 0.004
     min_liquidity_rub: float = 50_000_000
     allow_shorts: bool = True
+    adx_window: int = 14
+    adx_min: float = 20.0
+    rsi_window: int = 14
+    rsi_long_min: float = 50.0
+    rsi_long_max: float = 75.0
+    rsi_short_min: float = 25.0
+    rsi_short_max: float = 50.0
+    macd_fast: int = 12
+    macd_slow: int = 26
+    macd_signal: int = 9
 
 
 @dataclass(frozen=True)
