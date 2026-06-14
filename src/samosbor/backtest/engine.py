@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+from ..config import BacktestSection
+from ..domain import BacktestResult, Candle, EquityPoint, ExitReason, SignalDirection
+from ..execution.paper import LocalPaperBroker
+from ..risk.manager import RiskManager
+from ..strategy.trend_following import TrendFollowingStrategy
+
+
+class BacktestEngine:
+    def __init__(
+        self,
+        *,
+        strategy: TrendFollowingStrategy,
+        risk_manager: RiskManager,
+        backtest: BacktestSection,
+        slippage_bps: float,
+        commission_bps: float,
+    ):
+        self.strategy = strategy
+        self.risk_manager = risk_manager
+        self.backtest = backtest
+        self.slippage_bps = slippage_bps
+        self.commission_bps = commission_bps
+
+    def run_with_instruments(self, candles_by_symbol, instruments_by_symbol):
+        broker = LocalPaperBroker.fresh(
+            self.backtest.initial_cash,
+            slippage_bps=self.slippage_bps,
+            commission_bps=self.commission_bps,
+        )
+        events: list[dict[str, object]] = []
+        history_by_symbol = {symbol: [] for symbol in candles_by_symbol}
+        latest_marks: dict[str, float] = {}
+        timeline = sorted(
+            [
+                (candle.timestamp, symbol, candle)
+                for symbol, candles in candles_by_symbol.items()
+                for candle in candles
+            ],
+            key=lambda item: item[0],
+        )
+        equity_curve: list[EquityPoint] = []
+
+        for timestamp, symbol, candle in timeline:
+            history = history_by_symbol[symbol]
+            history.append(candle)
+            latest_marks[symbol] = candle.close
+
+            position = broker.portfolio.positions.get(symbol)
+            if position is not None:
+                exit_price, reason = self._check_exit(
+                    position.direction,
+                    position.stop_price,
+                    position.take_profit,
+                    candle,
+                )
+                if reason is not None:
+                    broker.close_position(symbol, price=exit_price, timestamp=timestamp, reason=reason)
+
+            position = broker.portfolio.positions.get(symbol)
+            if len(history) >= self.backtest.warmup_bars and not broker.portfolio.trading_halted:
+                signal = self.strategy.generate_signal(instruments_by_symbol[symbol], history)
+                if signal is not None:
+                    if position and position.direction != signal.direction:
+                        broker.close_position(
+                            symbol,
+                            price=candle.close,
+                            timestamp=timestamp,
+                            reason=ExitReason.SIGNAL_FLIP,
+                        )
+                        position = None
+                    if position is None:
+                        decision = self.risk_manager.approve(
+                            broker.portfolio,
+                            signal,
+                            {**latest_marks, symbol: candle.close},
+                            broker.trades,
+                        )
+                        events.append(
+                            {
+                                "timestamp": timestamp.isoformat(),
+                                "symbol": symbol,
+                                "action": "signal",
+                                "approved": decision.approved,
+                                "reason": decision.reason,
+                                "direction": signal.direction.value,
+                                "strength": signal.strength,
+                                "quantity_lots": decision.quantity_lots,
+                            }
+                        )
+                        if decision.approved:
+                            broker.open_position(signal, decision.quantity_lots, timestamp)
+
+            equity = broker.mark_to_market(latest_marks, timestamp)
+            equity_curve.append(
+                EquityPoint(
+                    timestamp=timestamp,
+                    equity=equity,
+                    cash=broker.portfolio.cash,
+                    gross_exposure=broker.portfolio.gross_exposure(latest_marks),
+                )
+            )
+
+        final_timestamp = timeline[-1][0] if timeline else datetime.utcnow()
+        for symbol in list(broker.portfolio.positions):
+            broker.close_position(
+                symbol,
+                price=latest_marks[symbol],
+                timestamp=final_timestamp,
+                reason=ExitReason.END_OF_TEST,
+            )
+
+        equity = broker.mark_to_market(latest_marks, final_timestamp)
+        equity_curve.append(
+            EquityPoint(
+                timestamp=final_timestamp,
+                equity=equity,
+                cash=broker.portfolio.cash,
+                gross_exposure=broker.portfolio.gross_exposure(latest_marks),
+            )
+        )
+        return BacktestResult(
+            portfolio=broker.portfolio,
+            trades=broker.trades,
+            equity_curve=equity_curve,
+            events=events + broker.events,
+        )
+
+    @staticmethod
+    def _check_exit(direction: SignalDirection, stop_price: float, take_profit: float, candle: Candle):
+        if direction == SignalDirection.LONG:
+            if candle.low <= stop_price:
+                return stop_price, ExitReason.STOP_LOSS
+            if candle.high >= take_profit:
+                return take_profit, ExitReason.TAKE_PROFIT
+        else:
+            if candle.high >= stop_price:
+                return stop_price, ExitReason.STOP_LOSS
+            if candle.low <= take_profit:
+                return take_profit, ExitReason.TAKE_PROFIT
+        return None, None

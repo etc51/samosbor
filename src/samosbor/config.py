@@ -1,0 +1,173 @@
+from __future__ import annotations
+
+import os
+import tomllib
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from .domain import Instrument, InstrumentType, TradeMode
+
+
+def load_dotenv(path: Path) -> None:
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.lstrip("\ufeff")
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key.strip(), value)
+
+
+@dataclass(frozen=True)
+class AppSection:
+    name: str = "samosbor"
+    timezone: str = "Europe/Moscow"
+
+
+@dataclass(frozen=True)
+class TBankSection:
+    token_env: str = "TBANK_INVEST_TOKEN"
+    sandbox_token_env: str = "TBANK_SANDBOX_TOKEN"
+    account_id_env: str = "TBANK_ACCOUNT_ID"
+    account_name: str = "Фьючерсы"
+    app_name: str = "samosbor"
+    ssl_verify_env: str = "SSL_TBANK_VERIFY"
+
+
+@dataclass(frozen=True)
+class DataSection:
+    source: str = "tbank"
+    timeframe: str = "hour"
+    history_days: int = 120
+    csv_path: str = ""
+    instruments: list[Instrument] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class StrategySection:
+    fast_window: int = 20
+    slow_window: int = 50
+    atr_window: int = 14
+    volume_window: int = 20
+    breakout_window: int = 20
+    atr_stop_multiple: float = 2.0
+    reward_to_risk: float = 2.0
+    min_trend_strength: float = 0.004
+    min_liquidity_rub: float = 50_000_000
+    allow_shorts: bool = True
+
+
+@dataclass(frozen=True)
+class RiskSection:
+    max_risk_per_trade: float = 0.01
+    max_gross_exposure: float = 1.25
+    max_drawdown: float = 0.12
+    cash_reserve_ratio: float = 0.15
+    max_positions: int = 6
+    kelly_lookback_trades: int = 20
+    min_trades_for_kelly: int = 8
+
+
+@dataclass(frozen=True)
+class ExecutionSection:
+    mode: TradeMode = TradeMode.LOCAL_PAPER
+    slippage_bps: float = 5.0
+    commission_bps: float = 5.0
+    state_path: str = "state/paper_state.json"
+    allow_live_trading: bool = False
+
+
+@dataclass(frozen=True)
+class BacktestSection:
+    initial_cash: float = 1_000_000.0
+    warmup_bars: int = 60
+
+
+@dataclass(frozen=True)
+class ReportingSection:
+    output_dir: str = "runs"
+    write_csv: bool = True
+
+
+@dataclass(frozen=True)
+class AppConfig:
+    root_dir: Path
+    app: AppSection
+    tbank: TBankSection
+    data: DataSection
+    strategy: StrategySection
+    risk: RiskSection
+    execution: ExecutionSection
+    backtest: BacktestSection
+    reporting: ReportingSection
+
+    def resolve_path(self, value: str) -> Path:
+        path = Path(value)
+        if path.is_absolute():
+            return path
+        return self.root_dir / path
+
+
+def _parse_instrument(payload: dict[str, Any]) -> Instrument:
+    return Instrument(
+        symbol=payload["symbol"].strip().upper(),
+        instrument_type=InstrumentType(payload["instrument_type"]),
+        figi=payload.get("figi", ""),
+        uid=payload.get("uid", ""),
+        class_code=payload.get("class_code", ""),
+        lot_size=int(payload.get("lot_size", 1)),
+        tick_size=float(payload.get("tick_size", 0.01)),
+        currency=payload.get("currency", "rub"),
+    )
+
+
+def load_config(config_path: str | Path) -> AppConfig:
+    config_path = Path(config_path).resolve()
+    root_dir = config_path.parent.parent
+    load_dotenv(root_dir / ".env")
+
+    raw = tomllib.loads(config_path.read_text(encoding="utf-8"))
+
+    app = AppSection(**raw.get("app", {}))
+    tbank = TBankSection(**raw.get("tbank", {}))
+
+    data_raw = raw.get("data", {})
+    instruments = [_parse_instrument(item) for item in data_raw.get("instruments", [])]
+    data = DataSection(
+        source=data_raw.get("source", "tbank"),
+        timeframe=data_raw.get("timeframe", "hour"),
+        history_days=int(data_raw.get("history_days", 120)),
+        csv_path=data_raw.get("csv_path", ""),
+        instruments=instruments,
+    )
+
+    strategy = StrategySection(**raw.get("strategy", {}))
+    risk = RiskSection(**raw.get("risk", {}))
+
+    execution_raw = raw.get("execution", {})
+    execution = ExecutionSection(
+        mode=TradeMode(execution_raw.get("mode", TradeMode.LOCAL_PAPER.value)),
+        slippage_bps=float(execution_raw.get("slippage_bps", 5.0)),
+        commission_bps=float(execution_raw.get("commission_bps", 5.0)),
+        state_path=execution_raw.get("state_path", "state/paper_state.json"),
+        allow_live_trading=bool(execution_raw.get("allow_live_trading", False)),
+    )
+
+    backtest = BacktestSection(**raw.get("backtest", {}))
+    reporting = ReportingSection(**raw.get("reporting", {}))
+
+    return AppConfig(
+        root_dir=root_dir,
+        app=app,
+        tbank=tbank,
+        data=data,
+        strategy=strategy,
+        risk=risk,
+        execution=execution,
+        backtest=backtest,
+        reporting=reporting,
+    )

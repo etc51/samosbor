@@ -1,0 +1,214 @@
+from __future__ import annotations
+
+import json
+from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from ..domain import ExitReason, PortfolioState, Position, Signal, SignalDirection, TradeRecord
+
+
+class LocalPaperBroker:
+    def __init__(
+        self,
+        portfolio: PortfolioState,
+        *,
+        slippage_bps: float,
+        commission_bps: float,
+        trades: list[TradeRecord] | None = None,
+        events: list[dict[str, Any]] | None = None,
+    ):
+        self.portfolio = portfolio
+        self.slippage_bps = slippage_bps
+        self.commission_bps = commission_bps
+        self.trades = trades or []
+        self.events = events or []
+
+    @classmethod
+    def fresh(
+        cls,
+        initial_cash: float,
+        *,
+        slippage_bps: float,
+        commission_bps: float,
+    ) -> "LocalPaperBroker":
+        return cls(
+            PortfolioState(cash=initial_cash, peak_equity=initial_cash),
+            slippage_bps=slippage_bps,
+            commission_bps=commission_bps,
+        )
+
+    @classmethod
+    def load(
+        cls,
+        state_path: Path,
+        *,
+        initial_cash: float,
+        slippage_bps: float,
+        commission_bps: float,
+    ) -> "LocalPaperBroker":
+        if not state_path.exists():
+            return cls.fresh(
+                initial_cash,
+                slippage_bps=slippage_bps,
+                commission_bps=commission_bps,
+            )
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+        trades = [
+            TradeRecord(
+                symbol=item["symbol"],
+                direction=SignalDirection(item["direction"]),
+                quantity_lots=int(item["quantity_lots"]),
+                entry_time=datetime.fromisoformat(item["entry_time"]),
+                exit_time=datetime.fromisoformat(item["exit_time"]),
+                entry_price=float(item["entry_price"]),
+                exit_price=float(item["exit_price"]),
+                gross_pnl=float(item["gross_pnl"]),
+                net_pnl=float(item["net_pnl"]),
+                reason=item["reason"],
+            )
+            for item in payload.get("trades", [])
+        ]
+        return cls(
+            portfolio=PortfolioState.from_dict(payload["portfolio"]),
+            slippage_bps=slippage_bps,
+            commission_bps=commission_bps,
+            trades=trades,
+            events=payload.get("events", []),
+        )
+
+    def save(self, state_path: Path) -> None:
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "portfolio": self.portfolio.to_dict(),
+            "trades": [
+                {
+                    "symbol": trade.symbol,
+                    "direction": trade.direction.value,
+                    "quantity_lots": trade.quantity_lots,
+                    "entry_time": trade.entry_time.isoformat(),
+                    "exit_time": trade.exit_time.isoformat(),
+                    "entry_price": trade.entry_price,
+                    "exit_price": trade.exit_price,
+                    "gross_pnl": trade.gross_pnl,
+                    "net_pnl": trade.net_pnl,
+                    "reason": trade.reason,
+                }
+                for trade in self.trades
+            ],
+            "events": self.events,
+        }
+        state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def mark_to_market(self, marks: dict[str, float], timestamp: datetime) -> float:
+        for symbol, position in self.portfolio.positions.items():
+            if symbol in marks:
+                position.current_price = marks[symbol]
+                position.updated_at = timestamp
+        equity = self.portfolio.equity(marks)
+        self.portfolio.peak_equity = max(self.portfolio.peak_equity, equity)
+        return equity
+
+    def open_position(self, signal: Signal, quantity_lots: int, timestamp: datetime) -> Position:
+        is_buy = signal.direction == SignalDirection.LONG
+        fill_price = self._slipped_price(signal.entry_price, is_buy=is_buy)
+        units = quantity_lots * signal.instrument.lot_size
+        notional = fill_price * units
+        commission = self._commission(notional)
+
+        if signal.direction == SignalDirection.LONG:
+            self.portfolio.cash -= notional + commission
+        else:
+            self.portfolio.cash += notional - commission
+
+        position = Position(
+            instrument=signal.instrument,
+            direction=signal.direction,
+            quantity_lots=quantity_lots,
+            entry_price=fill_price,
+            entry_commission=commission,
+            current_price=fill_price,
+            stop_price=signal.stop_price,
+            take_profit=signal.take_profit,
+            opened_at=timestamp,
+            updated_at=timestamp,
+        )
+        self.portfolio.positions[signal.instrument.symbol] = position
+        self.events.append(
+            {
+                "timestamp": timestamp.isoformat(),
+                "symbol": signal.instrument.symbol,
+                "action": "open",
+                "direction": signal.direction.value,
+                "quantity_lots": quantity_lots,
+                "fill_price": fill_price,
+                "commission": commission,
+                "reason": signal.reason,
+            }
+        )
+        return position
+
+    def close_position(
+        self,
+        symbol: str,
+        *,
+        price: float,
+        timestamp: datetime,
+        reason: ExitReason,
+    ) -> TradeRecord | None:
+        position = self.portfolio.positions.get(symbol)
+        if position is None:
+            return None
+
+        is_buy = position.direction == SignalDirection.SHORT
+        fill_price = self._slipped_price(price, is_buy=is_buy)
+        units = position.quantity_units
+        notional = fill_price * units
+        commission = self._commission(notional)
+
+        if position.direction == SignalDirection.LONG:
+            self.portfolio.cash += notional - commission
+            gross_pnl = (fill_price - position.entry_price) * units
+        else:
+            self.portfolio.cash -= notional + commission
+            gross_pnl = (position.entry_price - fill_price) * units
+
+        net_pnl = gross_pnl - position.entry_commission - commission
+        self.portfolio.realized_pnl += net_pnl
+
+        trade = TradeRecord(
+            symbol=symbol,
+            direction=position.direction,
+            quantity_lots=position.quantity_lots,
+            entry_time=position.opened_at,
+            exit_time=timestamp,
+            entry_price=position.entry_price,
+            exit_price=fill_price,
+            gross_pnl=gross_pnl,
+            net_pnl=net_pnl,
+            reason=reason.value,
+        )
+        self.trades.append(trade)
+        self.events.append(
+            {
+                "timestamp": timestamp.isoformat(),
+                "symbol": symbol,
+                "action": "close",
+                "direction": position.direction.value,
+                "quantity_lots": position.quantity_lots,
+                "fill_price": fill_price,
+                "commission": commission,
+                "reason": reason.value,
+                "net_pnl": net_pnl,
+            }
+        )
+        del self.portfolio.positions[symbol]
+        return trade
+
+    def _slipped_price(self, price: float, *, is_buy: bool) -> float:
+        factor = 1 + (self.slippage_bps / 10_000)
+        return price * factor if is_buy else price / factor
+
+    def _commission(self, notional: float) -> float:
+        return abs(notional) * self.commission_bps / 10_000

@@ -1,0 +1,152 @@
+# Архитектура samosbor
+
+## Назначение
+
+`samosbor` — прототип модульной системы paper-trading для Мосбиржи с интеграцией
+с T-Invest API Т-Банка. Система разделена на независимые слои, чтобы можно было
+развивать стратегию, риск и исполнение без переписывания всего проекта.
+
+## Принципы безопасности
+
+- По умолчанию включён только `local-paper`.
+- Есть отдельный backend `tbank-sandbox` для виртуальных заявок в песочницу.
+- Режим `live` заблокирован кодом в [src/samosbor/safety.py](/D:/projects/samosbor/src/samosbor/safety.py).
+- Токены читаются из `.env`, а `.env` исключён из git.
+
+## Слои системы
+
+### 1. Конфигурация
+
+Файл: [src/samosbor/config.py](/D:/projects/samosbor/src/samosbor/config.py)
+
+Задачи:
+
+- загрузка `configs/paper.toml`
+- загрузка секретов из локального `.env`
+- нормализация параметров стратегии, риска, исполнения и T-Bank доступа
+
+### 2. Доменная модель
+
+Файл: [src/samosbor/domain.py](/D:/projects/samosbor/src/samosbor/domain.py)
+
+Ключевые сущности:
+
+- `Instrument`
+- `Candle`
+- `Signal`
+- `Position`
+- `PortfolioState`
+- `TradeRecord`
+- `BacktestResult`
+
+### 3. Источники данных
+
+Файлы:
+
+- [src/samosbor/data/tbank.py](/D:/projects/samosbor/src/samosbor/data/tbank.py)
+- [src/samosbor/data/csv_provider.py](/D:/projects/samosbor/src/samosbor/data/csv_provider.py)
+
+Режимы:
+
+- `tbank` — исторические свечи и аккаунты через T-Bank API
+- `csv` — офлайн бэктест из CSV
+
+`TBankMarketDataProvider`:
+
+- резолвит тикер в `uid/figi`
+- загружает свечи по таймфрейму
+- умеет возвращать список аккаунтов
+
+### 4. Аналитика и сигналы
+
+Файлы:
+
+- [src/samosbor/analysis/indicators.py](/D:/projects/samosbor/src/samosbor/analysis/indicators.py)
+- [src/samosbor/analysis/context.py](/D:/projects/samosbor/src/samosbor/analysis/context.py)
+- [src/samosbor/strategy/trend_following.py](/D:/projects/samosbor/src/samosbor/strategy/trend_following.py)
+
+Текущая базовая стратегия:
+
+- fast/slow SMA тренд
+- breakout по диапазону
+- ATR для стопа
+- фильтр ликвидности через средний оборот
+- optional external context provider для новостей, макро и social data
+
+### 5. Риск-менеджмент
+
+Файл: [src/samosbor/risk/manager.py](/D:/projects/samosbor/src/samosbor/risk/manager.py)
+
+Контроли:
+
+- риск на сделку
+- лимит gross exposure
+- лимит количества позиций
+- cash reserve
+- аварийная остановка по max drawdown
+- динамическое масштабирование через упрощённый half-Kelly
+
+### 6. Исполнение
+
+Файлы:
+
+- [src/samosbor/execution/paper.py](/D:/projects/samosbor/src/samosbor/execution/paper.py)
+- [src/samosbor/execution/sandbox.py](/D:/projects/samosbor/src/samosbor/execution/sandbox.py)
+
+`LocalPaperBroker`:
+
+- открывает и закрывает виртуальные позиции
+- учитывает slippage и commission
+- считает cash/equity
+- сохраняет состояние в `state/paper_state.json`
+
+`TBankSandboxExecutor`:
+
+- создаёт sandbox account
+- пополняет sandbox
+- отправляет виртуальные market orders через sandbox-контур
+
+### 7. Бэктест и отчётность
+
+Файлы:
+
+- [src/samosbor/backtest/engine.py](/D:/projects/samosbor/src/samosbor/backtest/engine.py)
+- [src/samosbor/reporting/metrics.py](/D:/projects/samosbor/src/samosbor/reporting/metrics.py)
+- [src/samosbor/reporting/writer.py](/D:/projects/samosbor/src/samosbor/reporting/writer.py)
+
+`BacktestEngine`:
+
+- прогоняет общий timeline по всем инструментам
+- проверяет стопы/тейки
+- открывает позиции только после risk approval
+- закрывает остатки в конце теста
+
+Отчёты:
+
+- `summary.json`
+- `trades.csv`
+- `equity.csv`
+- `events.jsonl`
+- `portfolio.json`
+
+## Оркестрация
+
+Файл: [src/samosbor/orchestrator.py](/D:/projects/samosbor/src/samosbor/orchestrator.py)
+
+CLI-сценарии:
+
+- `accounts`
+- `backtest`
+- `paper-cycle`
+- `sandbox-init`
+
+## Дальнейшее развитие
+
+Ближайшие точки роста:
+
+- persistent portfolio analytics между paper-cycle запусками
+- news/fundamental ingestion через отдельные adapters
+- подбор параметров и walk-forward validation
+- Monte-Carlo и stress testing
+- dashboard/monitoring
+- feature store и ML-модели поверх базовой стратегии

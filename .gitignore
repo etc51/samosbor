@@ -8,6 +8,13 @@ Desktop.ini
 .vscode/
 *.code-workspace
 
+# Project-local state
+.env
+.venv/
+_vendor/
+runs/
+state/
+
 # Logs and temp
 *.log
 tmp/
@@ -22,5 +29,4 @@ coverage/
 # Python
 __pycache__/
 *.py[cod]
-.venv/
 venv/

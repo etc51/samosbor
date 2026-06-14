@@ -1,0 +1,64 @@
+[app]
+name = "samosbor"
+timezone = "Europe/Moscow"
+
+[tbank]
+token_env = "TBANK_INVEST_TOKEN"
+sandbox_token_env = "TBANK_SANDBOX_TOKEN"
+account_id_env = "TBANK_ACCOUNT_ID"
+account_name = "Фьючерсы"
+app_name = "samosbor"
+ssl_verify_env = "SSL_TBANK_VERIFY"
+
+[data]
+source = "tbank"
+timeframe = "hour"
+history_days = 120
+
+[[data.instruments]]
+symbol = "SBER"
+instrument_type = "stock"
+
+[[data.instruments]]
+symbol = "GAZP"
+instrument_type = "stock"
+
+[[data.instruments]]
+symbol = "LKOH"
+instrument_type = "stock"
+
+[strategy]
+fast_window = 20
+slow_window = 50
+atr_window = 14
+volume_window = 20
+breakout_window = 20
+atr_stop_multiple = 2.0
+reward_to_risk = 2.2
+min_trend_strength = 0.004
+min_liquidity_rub = 50000000
+allow_shorts = true
+
+[risk]
+max_risk_per_trade = 0.01
+max_gross_exposure = 1.25
+max_drawdown = 0.12
+cash_reserve_ratio = 0.15
+max_positions = 6
+kelly_lookback_trades = 20
+min_trades_for_kelly = 8
+
+[execution]
+mode = "local-paper"
+slippage_bps = 5.0
+commission_bps = 5.0
+state_path = "state/paper_state.json"
+allow_live_trading = false
+
+[backtest]
+initial_cash = 1000000
+warmup_bars = 60
+
+[reporting]
+output_dir = "runs"
+write_csv = true
