@@ -13,10 +13,15 @@ from .domain import ExitReason
 from .execution.paper import LocalPaperBroker
 from .execution.sandbox import TBankSandboxExecutor
 from .reporting.metrics import compute_summary
-from .reporting.research_writer import write_monte_carlo_report, write_optimizer_report
+from .reporting.research_writer import (
+    write_monte_carlo_report,
+    write_optimizer_report,
+    write_walk_forward_report,
+)
 from .reporting.writer import write_backtest_report, write_json_payload, write_portfolio_snapshot
 from .research.monte_carlo import MonteCarloSimulator
 from .research.optimizer import ParameterOptimizer
+from .research.walk_forward import WalkForwardValidator
 from .risk.manager import RiskManager
 from .safety import assert_paper_only_mode
 from .strategy.trend_following import TrendFollowingStrategy
@@ -153,6 +158,29 @@ class TradingOrchestrator:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "monte-carlo" / stamp
         write_monte_carlo_report(output_dir, payload)
+        payload["output_dir"] = str(output_dir)
+        return payload
+
+    def run_walk_forward(self) -> dict[str, object]:
+        assert_paper_only_mode(
+            self.config.execution.mode,
+            allow_live_trading=self.config.execution.allow_live_trading,
+            live_flag=False,
+        )
+        _, _, candles_by_symbol, instruments_by_symbol = self._load_market_bundle()
+        validator = WalkForwardValidator(
+            base_strategy=self.config.strategy,
+            risk=self.config.risk,
+            backtest=self.config.backtest,
+            research=self.config.research,
+            timeframe=self.config.data.timeframe,
+            slippage_bps=self.config.execution.slippage_bps,
+            commission_bps=self.config.execution.commission_bps,
+        )
+        payload = validator.run(candles_by_symbol, instruments_by_symbol)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "walk-forward" / stamp
+        write_walk_forward_report(output_dir, payload)
         payload["output_dir"] = str(output_dir)
         return payload
 

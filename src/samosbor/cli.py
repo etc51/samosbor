@@ -28,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("paper-cycle", help="Run one paper-trading cycle")
     subparsers.add_parser("optimize", help="Search parameter sets and instrument subsets")
     subparsers.add_parser("monte-carlo", help="Run Monte Carlo robustness analysis on a fresh backtest")
+    subparsers.add_parser("walk-forward", help="Run rolling walk-forward validation with re-optimization")
 
     sandbox_parser = subparsers.add_parser("sandbox-init", help="Create/fund a sandbox account")
     sandbox_parser.add_argument("--fund-rub", type=float, default=1_000_000)
@@ -57,6 +58,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "monte-carlo":
         print(json.dumps(orchestrator.run_monte_carlo(), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "walk-forward":
+        print(json.dumps(orchestrator.run_walk_forward(), ensure_ascii=False, indent=2))
         return 0
     if args.command == "sandbox-init":
         print(

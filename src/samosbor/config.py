@@ -120,6 +120,9 @@ class ResearchSection:
     subset_max_size: int = 3
     top_n: int = 10
     min_trades: int = 6
+    walk_forward_train_months: int = 6
+    walk_forward_test_months: int = 1
+    walk_forward_step_months: int = 1
     monte_carlo_iterations: int = 1000
     monte_carlo_horizon_months: int = 12
     target_monthly_return_pct: float = 5.0

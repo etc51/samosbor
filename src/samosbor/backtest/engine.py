@@ -25,7 +25,13 @@ class BacktestEngine:
         self.slippage_bps = slippage_bps
         self.commission_bps = commission_bps
 
-    def run_with_instruments(self, candles_by_symbol, instruments_by_symbol):
+    def run_with_instruments(
+        self,
+        candles_by_symbol,
+        instruments_by_symbol,
+        *,
+        trade_start_at=None,
+    ):
         for symbol, candles in candles_by_symbol.items():
             self.strategy.prepare_history(instruments_by_symbol[symbol], candles)
 
@@ -52,50 +58,58 @@ class BacktestEngine:
             history.append(candle)
             latest_marks[symbol] = candle.close
 
-            position = broker.portfolio.positions.get(symbol)
-            if position is not None:
-                exit_price, reason = self._check_exit(
-                    position.direction,
-                    position.stop_price,
-                    position.take_profit,
-                    candle,
-                )
-                if reason is not None:
-                    broker.close_position(symbol, price=exit_price, timestamp=timestamp, reason=reason)
+            can_trade = trade_start_at is None or timestamp >= trade_start_at
 
-            position = broker.portfolio.positions.get(symbol)
-            if len(history) >= self.backtest.warmup_bars and not broker.portfolio.trading_halted:
-                signal = self.strategy.generate_signal(instruments_by_symbol[symbol], history)
-                if signal is not None:
-                    if position and position.direction != signal.direction:
+            if can_trade:
+                position = broker.portfolio.positions.get(symbol)
+                if position is not None:
+                    exit_price, reason = self._check_exit(
+                        position.direction,
+                        position.stop_price,
+                        position.take_profit,
+                        candle,
+                    )
+                    if reason is not None:
                         broker.close_position(
                             symbol,
-                            price=candle.close,
+                            price=exit_price,
                             timestamp=timestamp,
-                            reason=ExitReason.SIGNAL_FLIP,
+                            reason=reason,
                         )
-                        position = None
-                    if position is None:
-                        decision = self.risk_manager.approve(
-                            broker.portfolio,
-                            signal,
-                            {**latest_marks, symbol: candle.close},
-                            broker.trades,
-                        )
-                        events.append(
-                            {
-                                "timestamp": timestamp.isoformat(),
-                                "symbol": symbol,
-                                "action": "signal",
-                                "approved": decision.approved,
-                                "reason": decision.reason,
-                                "direction": signal.direction.value,
-                                "strength": signal.strength,
-                                "quantity_lots": decision.quantity_lots,
-                            }
-                        )
-                        if decision.approved:
-                            broker.open_position(signal, decision.quantity_lots, timestamp)
+
+                position = broker.portfolio.positions.get(symbol)
+                if len(history) >= self.backtest.warmup_bars and not broker.portfolio.trading_halted:
+                    signal = self.strategy.generate_signal(instruments_by_symbol[symbol], history)
+                    if signal is not None:
+                        if position and position.direction != signal.direction:
+                            broker.close_position(
+                                symbol,
+                                price=candle.close,
+                                timestamp=timestamp,
+                                reason=ExitReason.SIGNAL_FLIP,
+                            )
+                            position = None
+                        if position is None:
+                            decision = self.risk_manager.approve(
+                                broker.portfolio,
+                                signal,
+                                {**latest_marks, symbol: candle.close},
+                                broker.trades,
+                            )
+                            events.append(
+                                {
+                                    "timestamp": timestamp.isoformat(),
+                                    "symbol": symbol,
+                                    "action": "signal",
+                                    "approved": decision.approved,
+                                    "reason": decision.reason,
+                                    "direction": signal.direction.value,
+                                    "strength": signal.strength,
+                                    "quantity_lots": decision.quantity_lots,
+                                }
+                            )
+                            if decision.approved:
+                                broker.open_position(signal, decision.quantity_lots, timestamp)
 
             equity = broker.mark_to_market(latest_marks, timestamp)
             equity_curve.append(

@@ -51,6 +51,19 @@ class ParameterOptimizer:
         self.slippage_bps = slippage_bps
         self.commission_bps = commission_bps
 
+    def strategy_from_candidate_payload(self, payload: dict[str, object]) -> StrategySection:
+        return replace(
+            self.base_strategy,
+            style=str(payload["style"]).strip().lower(),
+            fast_window=int(payload["fast_window"]),
+            slow_window=int(payload["slow_window"]),
+            require_breakout=bool(payload["require_breakout"]),
+            atr_stop_multiple=float(payload["atr_stop_multiple"]),
+            reward_to_risk=float(payload["reward_to_risk"]),
+            min_trend_strength=float(payload["min_trend_strength"]),
+            adx_min=float(payload["adx_min"]),
+        )
+
     def run(
         self,
         candles_by_symbol: dict[str, list[Candle]],

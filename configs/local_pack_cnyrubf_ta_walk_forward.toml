@@ -46,7 +46,7 @@ macd_signal = 9
 
 [risk]
 max_risk_per_trade = 0.01
-# Risk profile is conservative, but leverage is available via exposure cap if needed.
+# Conservative walk-forward profile with margin still available through exposure cap.
 max_gross_exposure = 1.5
 max_drawdown = 0.12
 cash_reserve_ratio = 0.10
@@ -59,7 +59,7 @@ mode = "local-paper"
 slippage_bps = 2.0
 # Premium futures paper approximation.
 commission_bps = 2.0
-state_path = "state/local_pack_cnyrubf_ta_candidate_state.json"
+state_path = "state/local_pack_cnyrubf_ta_walk_forward_state.json"
 allow_live_trading = false
 
 [backtest]
@@ -71,15 +71,21 @@ output_dir = "runs"
 write_csv = true
 
 [research]
-fast_windows = [10, 15, 20]
-slow_windows = [30, 40, 50]
-atr_stop_multipliers = [1.5, 2.0]
-reward_to_risk_values = [1.5, 2.0, 2.5]
-trend_strength_values = [0.002, 0.004, 0.006]
+strategy_styles = ["ema_adx_macd"]
+fast_windows = [10]
+slow_windows = [40]
+require_breakout_values = [false, true]
+atr_stop_multipliers = [1.5]
+reward_to_risk_values = [2.0]
+trend_strength_values = [0.002]
+adx_min_values = [15.0, 20.0]
 subset_min_size = 1
 subset_max_size = 1
 top_n = 10
 min_trades = 8
+walk_forward_train_months = 6
+walk_forward_test_months = 1
+walk_forward_step_months = 1
 monte_carlo_iterations = 1000
 monte_carlo_horizon_months = 12
 target_monthly_return_pct = 5.0

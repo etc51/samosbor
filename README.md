@@ -26,6 +26,7 @@
 - `configs/local_pack_ta_research.toml` — сфокусированный TA-search по сильным MOEX futures
 - `configs/local_pack_usdrubf_candidate.toml` — конфиг лучшего кандидата из локальной оптимизации
 - `configs/local_pack_cnyrubf_ta_candidate.toml` — TA-кандидат на `CNYRUBF`
+- `configs/local_pack_cnyrubf_ta_walk_forward.toml` — walk-forward валидация для `CNYRUBF` TA-кандидата
 - `configs/local_pack_cnyrubf_ta_aggressive.toml` — усиленный риск-профиль для лучшего `CNYRUBF`-кандидата
 - `configs/local_pack_fx_index_ta_aggressive.toml` — более агрессивный TA-портфель `USDRUBF + CNYRUBF + IMOEXF`
 - `docs/architecture.md` — архитектура и логика работы
@@ -91,6 +92,7 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_research.toml optimize
 .\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_research.toml monte-carlo
 .\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_ta_research.toml optimize
+.\\.venv\\Scripts\\python -m samosbor.cli --config configs/local_pack_cnyrubf_ta_walk_forward.toml walk-forward
 ```
 
 Поддерживаемые стили стратегии:
@@ -103,6 +105,9 @@ SSL_TBANK_VERIFY=True
 - `strategy_styles`
 - `require_breakout_values`
 - `adx_min_values`
+- `walk_forward_train_months`
+- `walk_forward_test_months`
+- `walk_forward_step_months`
 
 Что делает локальный провайдер:
 
@@ -144,7 +149,23 @@ SSL_TBANK_VERIFY=True
 - ранее найденный агрессивный портфель [configs/local_pack_fx_index_ta_aggressive.toml](/D:/projects/samosbor/configs/local_pack_fx_index_ta_aggressive.toml):
   `USDRUBF + CNYRUBF + IMOEXF`, `+41.671% total return`, `10.77% max drawdown`, `3.09% avg monthly return`
 
-Итог текущего этапа: исследовательский контур стал быстрее и полезнее, а лучший одиночный TA-профиль улучшен. Цель `5%` в месяц все еще не достигнута на устойчивой основе, но теперь у нас есть подтвержденный shortlist и воспроизводимые risk-up конфиги для следующего шага.
+Walk-forward для [configs/local_pack_cnyrubf_ta_walk_forward.toml](/D:/projects/samosbor/configs/local_pack_cnyrubf_ta_walk_forward.toml) показал более трезвую OOS-картину:
+
+- базовый TA-кандидат: `7` fold-ов, `1.133% average OOS monthly return`, `57.143%` положительных месяцев, `7.97% compounded OOS return`
+- aggressive risk-up профиль на маржинальном допущении: `0.841% average OOS monthly return`, `71.429%` положительных месяцев, `5.767% compounded OOS return`
+- вывод: более агрессивное использование капитала выглядит лучше in-sample, но пока не приближает систему к устойчивым `5%` в месяц на OOS
+
+## Профиль Брокера
+
+- рабочее допущение проекта: счёт Т-Банка с тарифом `Premium`
+- futures research-конфиги сейчас используют `commission_bps = 2.0` как paper-аппроксимацию под Premium-профиль
+- использование маржинальных средств допустимо и уже отражается в risk-up конфигурациях через `max_gross_exposure > 1.0`
+- полная модель стоимости переноса непокрытых позиций и инструмент-специфичных margin requirements Т-Банка пока не встроена в paper broker
+- официальные справочные страницы Т-Банка:
+  [тарифы инвестора](https://www.tbank.ru/invest/help/brokerage/account/get-bs/tariff/)
+  и [маржинальная торговля](https://www.tbank.ru/invest/help/brokerage/account/margin/advantages/)
+
+Итог текущего этапа: исследовательский контур стал быстрее и честнее, потому что теперь включает walk-forward. Цель `5%` в месяц все еще не достигнута на устойчивой основе, но мы уже видим, какие профили переживают OOS-проверку лучше, а какие просто выглядят красиво на общем backtest.
 
 ## Безопасность
 

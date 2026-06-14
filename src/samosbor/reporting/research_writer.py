@@ -67,3 +67,67 @@ def write_monte_carlo_report(output_dir: Path, payload: dict[str, object]) -> No
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def write_walk_forward_report(output_dir: Path, payload: dict[str, object]) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "walk_forward.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    rows = payload.get("folds", [])
+    with (output_dir / "walk_forward_folds.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            [
+                "fold_index",
+                "train_months",
+                "test_months",
+                "symbols",
+                "style",
+                "fast_window",
+                "slow_window",
+                "require_breakout",
+                "atr_stop_multiple",
+                "reward_to_risk",
+                "min_trend_strength",
+                "adx_min",
+                "train_total_return_pct",
+                "train_normalized_monthly_return_pct",
+                "test_total_return_pct",
+                "test_normalized_monthly_return_pct",
+                "test_max_drawdown_pct",
+                "test_sharpe_ratio",
+                "test_trades",
+            ]
+        )
+        for row in rows:
+            candidate = row["best_candidate"]
+            train_summary = row["train_summary"]
+            test_summary = row["test_summary"]
+            writer.writerow(
+                [
+                    row["fold_index"],
+                    ",".join(row["train_months"]),
+                    ",".join(row["test_months"]),
+                    ",".join(candidate["symbols"]),
+                    candidate["style"],
+                    candidate["fast_window"],
+                    candidate["slow_window"],
+                    candidate["require_breakout"],
+                    candidate["atr_stop_multiple"],
+                    candidate["reward_to_risk"],
+                    candidate["min_trend_strength"],
+                    candidate["adx_min"],
+                    train_summary["total_return_pct"],
+                    train_summary["normalized_monthly_return_pct"],
+                    test_summary["total_return_pct"],
+                    test_summary["normalized_monthly_return_pct"],
+                    test_summary["max_drawdown_pct"],
+                    test_summary["sharpe_ratio"],
+                    test_summary["trades"],
+                ]
+            )

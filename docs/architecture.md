@@ -101,6 +101,7 @@
 - cash reserve
 - аварийная остановка по max drawdown
 - динамическое масштабирование через упрощённый half-Kelly
+- risk-up профили допускают использование маржинального капитала через `max_gross_exposure > 1.0`, но без полной брокерской модели переноса
 
 ### 6. Исполнение
 
@@ -115,6 +116,7 @@
 - учитывает slippage и commission
 - считает cash/equity
 - сохраняет состояние в `state/paper_state.json`
+- текущая paper-модель еще не знает официальные T-Bank margin haircuts и carry-cost по непокрытым позициям
 
 `TBankSandboxExecutor`:
 
@@ -159,6 +161,7 @@
 - перебор подмножеств инструментов
 - ranking кандидатов по composite score
 - Monte Carlo по наблюдаемым месячным доходностям
+- rolling walk-forward validation с переоптимизацией на train-окне и OOS-проверкой на test-окне
 - отдельные research-конфиги под локальный parquet-архив на `D:`
 - перебор `strategy_styles`, `require_breakout_values` и `adx_min_values` для TA-ветки
 
@@ -166,6 +169,7 @@ CLI:
 
 - `optimize`
 - `monte-carlo`
+- `walk-forward`
 
 ## Оркестрация
 
@@ -191,4 +195,4 @@ CLI-сценарии:
 - dashboard/monitoring
 - feature store и ML-модели поверх базовой стратегии
 - futures-aware модель маржи и риска вместо приближённого notional-подхода
-- walk-forward validation поверх новых TA research-профилей
+- интеграция официальной T-Bank Premium margin-стоимости переноса в paper broker и backtest

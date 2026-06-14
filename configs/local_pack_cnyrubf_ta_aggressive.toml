@@ -46,6 +46,7 @@ macd_signal = 9
 
 [risk]
 max_risk_per_trade = 0.02
+# Margin-enabled risk-up profile; full T-Bank carry-cost modeling is not simulated yet.
 max_gross_exposure = 2.0
 max_drawdown = 0.12
 cash_reserve_ratio = 0.05
@@ -56,6 +57,7 @@ min_trades_for_kelly = 8
 [execution]
 mode = "local-paper"
 slippage_bps = 2.0
+# Premium futures paper approximation.
 commission_bps = 2.0
 state_path = "state/local_pack_cnyrubf_ta_aggressive_state.json"
 allow_live_trading = false
