@@ -26,6 +26,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("accounts", help="List T-Bank accounts visible to the configured token")
     subparsers.add_parser("backtest", help="Run a historical backtest")
     subparsers.add_parser("paper-cycle", help="Run one paper-trading cycle")
+    subparsers.add_parser("optimize", help="Search parameter sets and instrument subsets")
+    subparsers.add_parser("monte-carlo", help="Run Monte Carlo robustness analysis on a fresh backtest")
 
     sandbox_parser = subparsers.add_parser("sandbox-init", help="Create/fund a sandbox account")
     sandbox_parser.add_argument("--fund-rub", type=float, default=1_000_000)
@@ -49,6 +51,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "paper-cycle":
         print(json.dumps(orchestrator.run_paper_cycle(), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "optimize":
+        print(json.dumps(orchestrator.optimize_strategy(), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "monte-carlo":
+        print(json.dumps(orchestrator.run_monte_carlo(), ensure_ascii=False, indent=2))
         return 0
     if args.command == "sandbox-init":
         print(

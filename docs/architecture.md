@@ -45,17 +45,26 @@
 
 - [src/samosbor/data/tbank.py](/D:/projects/samosbor/src/samosbor/data/tbank.py)
 - [src/samosbor/data/csv_provider.py](/D:/projects/samosbor/src/samosbor/data/csv_provider.py)
+- [src/samosbor/data/moex_data_pack.py](/D:/projects/samosbor/src/samosbor/data/moex_data_pack.py)
 
 Режимы:
 
 - `tbank` — исторические свечи и аккаунты через T-Bank API
 - `csv` — офлайн бэктест из CSV
+- `moex-data-pack` — локальный parquet-архив с диска `D:`
 
 `TBankMarketDataProvider`:
 
 - резолвит тикер в `uid/figi`
 - загружает свечи по таймфрейму
 - умеет возвращать список аккаунтов
+
+`MoexDataPackProvider`:
+
+- читает root-series из локального `parquet`-архива
+- использует metadata-слой для поиска нужного `instrument_uid`
+- агрегирует `1m` свечи в более крупный таймфрейм
+- позволяет делать research без постоянной загрузки history через API
 
 ### 4. Аналитика и сигналы
 
@@ -129,6 +138,26 @@
 - `events.jsonl`
 - `portfolio.json`
 
+### 8. Research И Оптимизация
+
+Файлы:
+
+- [src/samosbor/research/optimizer.py](/D:/projects/samosbor/src/samosbor/research/optimizer.py)
+- [src/samosbor/research/monte_carlo.py](/D:/projects/samosbor/src/samosbor/research/monte_carlo.py)
+- [src/samosbor/reporting/research_writer.py](/D:/projects/samosbor/src/samosbor/reporting/research_writer.py)
+
+Возможности:
+
+- grid-search по параметрам стратегии
+- перебор подмножеств инструментов
+- ranking кандидатов по composite score
+- Monte Carlo по наблюдаемым месячным доходностям
+
+CLI:
+
+- `optimize`
+- `monte-carlo`
+
 ## Оркестрация
 
 Файл: [src/samosbor/orchestrator.py](/D:/projects/samosbor/src/samosbor/orchestrator.py)
@@ -139,6 +168,8 @@ CLI-сценарии:
 - `backtest`
 - `paper-cycle`
 - `sandbox-init`
+- `optimize`
+- `monte-carlo`
 
 ## Дальнейшее развитие
 

@@ -11,21 +11,22 @@ app_name = "samosbor"
 ssl_verify_env = "SSL_TBANK_VERIFY"
 
 [data]
-source = "tbank"
+source = "moex-data-pack"
 timeframe = "hour"
-history_days = 120
+history_days = 365
+local_data_pack_path = "D:/3_pips_x2_project/moex_futures_data_pack"
 
 [[data.instruments]]
-symbol = "SBER"
-instrument_type = "stock"
+symbol = "GAZPF"
+instrument_type = "future"
 
 [[data.instruments]]
-symbol = "GAZP"
-instrument_type = "stock"
+symbol = "IMOEXF"
+instrument_type = "future"
 
 [[data.instruments]]
-symbol = "LKOH"
-instrument_type = "stock"
+symbol = "USDRUBF"
+instrument_type = "future"
 
 [strategy]
 fast_window = 20
@@ -36,23 +37,23 @@ breakout_window = 20
 atr_stop_multiple = 2.0
 reward_to_risk = 2.2
 min_trend_strength = 0.004
-min_liquidity_rub = 50000000
+min_liquidity_rub = 1000000
 allow_shorts = true
 
 [risk]
 max_risk_per_trade = 0.01
-max_gross_exposure = 1.25
+max_gross_exposure = 1.5
 max_drawdown = 0.12
-cash_reserve_ratio = 0.15
-max_positions = 6
+cash_reserve_ratio = 0.10
+max_positions = 4
 kelly_lookback_trades = 20
 min_trades_for_kelly = 8
 
 [execution]
 mode = "local-paper"
-slippage_bps = 5.0
-commission_bps = 5.0
-state_path = "state/paper_state.json"
+slippage_bps = 2.0
+commission_bps = 2.0
+state_path = "state/local_pack_paper_state.json"
 allow_live_trading = false
 
 [backtest]
@@ -72,7 +73,7 @@ trend_strength_values = [0.004, 0.006]
 subset_min_size = 1
 subset_max_size = 3
 top_n = 10
-min_trades = 6
+min_trades = 8
 monte_carlo_iterations = 1000
 monte_carlo_horizon_months = 12
 target_monthly_return_pct = 5.0

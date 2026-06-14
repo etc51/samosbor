@@ -44,6 +44,7 @@ class DataSection:
     timeframe: str = "hour"
     history_days: int = 120
     csv_path: str = ""
+    local_data_pack_path: str = ""
     instruments: list[Instrument] = field(default_factory=list)
 
 
@@ -94,6 +95,23 @@ class ReportingSection:
 
 
 @dataclass(frozen=True)
+class ResearchSection:
+    fast_windows: list[int] = field(default_factory=lambda: [10, 15, 20])
+    slow_windows: list[int] = field(default_factory=lambda: [30, 40, 50])
+    atr_stop_multipliers: list[float] = field(default_factory=lambda: [1.5, 2.0])
+    reward_to_risk_values: list[float] = field(default_factory=lambda: [1.5, 2.0, 2.5])
+    trend_strength_values: list[float] = field(default_factory=lambda: [0.004, 0.006])
+    subset_min_size: int = 1
+    subset_max_size: int = 3
+    top_n: int = 10
+    min_trades: int = 6
+    monte_carlo_iterations: int = 1000
+    monte_carlo_horizon_months: int = 12
+    target_monthly_return_pct: float = 5.0
+    random_seed: int = 42
+
+
+@dataclass(frozen=True)
 class AppConfig:
     root_dir: Path
     app: AppSection
@@ -104,6 +122,7 @@ class AppConfig:
     execution: ExecutionSection
     backtest: BacktestSection
     reporting: ReportingSection
+    research: ResearchSection
 
     def resolve_path(self, value: str) -> Path:
         path = Path(value)
@@ -142,6 +161,7 @@ def load_config(config_path: str | Path) -> AppConfig:
         timeframe=data_raw.get("timeframe", "hour"),
         history_days=int(data_raw.get("history_days", 120)),
         csv_path=data_raw.get("csv_path", ""),
+        local_data_pack_path=data_raw.get("local_data_pack_path", ""),
         instruments=instruments,
     )
 
@@ -159,6 +179,7 @@ def load_config(config_path: str | Path) -> AppConfig:
 
     backtest = BacktestSection(**raw.get("backtest", {}))
     reporting = ReportingSection(**raw.get("reporting", {}))
+    research = ResearchSection(**raw.get("research", {}))
 
     return AppConfig(
         root_dir=root_dir,
@@ -170,4 +191,5 @@ def load_config(config_path: str | Path) -> AppConfig:
         execution=execution,
         backtest=backtest,
         reporting=reporting,
+        research=research,
     )
