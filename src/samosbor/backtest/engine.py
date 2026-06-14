@@ -26,6 +26,9 @@ class BacktestEngine:
         self.commission_bps = commission_bps
 
     def run_with_instruments(self, candles_by_symbol, instruments_by_symbol):
+        for symbol, candles in candles_by_symbol.items():
+            self.strategy.prepare_history(instruments_by_symbol[symbol], candles)
+
         broker = LocalPaperBroker.fresh(
             self.backtest.initial_cash,
             slippage_bps=self.slippage_bps,

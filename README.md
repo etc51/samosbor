@@ -23,8 +23,10 @@
 - `src/samosbor/` — код системы
 - `configs/paper.toml` — пример конфигурации
 - `configs/local_pack_research.toml` — research-конфиг для локального архива свечей на `D:`
+- `configs/local_pack_ta_research.toml` — сфокусированный TA-search по сильным MOEX futures
 - `configs/local_pack_usdrubf_candidate.toml` — конфиг лучшего кандидата из локальной оптимизации
 - `configs/local_pack_cnyrubf_ta_candidate.toml` — TA-кандидат на `CNYRUBF`
+- `configs/local_pack_cnyrubf_ta_aggressive.toml` — усиленный риск-профиль для лучшего `CNYRUBF`-кандидата
 - `configs/local_pack_fx_index_ta_aggressive.toml` — более агрессивный TA-портфель `USDRUBF + CNYRUBF + IMOEXF`
 - `docs/architecture.md` — архитектура и логика работы
 - `requirements-tbank.txt` — установка актуального SDK Т-Банка
@@ -88,12 +90,19 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_research.toml backtest
 .\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_research.toml optimize
 .\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_research.toml monte-carlo
+.\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_ta_research.toml optimize
 ```
 
 Поддерживаемые стили стратегии:
 
 - `sma_breakout` — исходный трендовый режим на SMA + breakout + ATR
 - `ema_adx_macd` — режим на `pandas-ta` с EMA, ADX, RSI и MACD-фильтрами
+
+Поля research-grid для TA-оптимизации:
+
+- `strategy_styles`
+- `require_breakout_values`
+- `adx_min_values`
 
 Что делает локальный провайдер:
 
@@ -120,16 +129,22 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/local_pack_usdrubf_candidate.toml monte-carlo
 ```
 
-Новый TA-режим на `pandas-ta` дал более сильный профиль на валютных фьючерсах:
+Новый TA-optimizer на локальном архиве дал более сильную версию кандидата на `CNYRUBF`:
 
-- `CNYRUBF`, конфиг [configs/local_pack_cnyrubf_ta_candidate.toml](/D:/projects/samosbor/configs/local_pack_cnyrubf_ta_candidate.toml):
-  `+20.262% total return`, `4.054% max drawdown`, `Sharpe 1.542`, `1.532% avg monthly return`
-- Monte Carlo для этого кандидата:
-  `98.3%` вероятность положительного результата за 12 месяцев, но `0.0%` вероятность достижения целевых `5%` среднего месячного дохода
-- Агрессивный портфель [configs/local_pack_fx_index_ta_aggressive.toml](/D:/projects/samosbor/configs/local_pack_fx_index_ta_aggressive.toml):
+- focused-search [configs/local_pack_ta_research.toml](/D:/projects/samosbor/configs/local_pack_ta_research.toml):
+  `96` кандидатов за `~101` секунду, лучший результат у `CNYRUBF`
+- базовый кандидат [configs/local_pack_cnyrubf_ta_candidate.toml](/D:/projects/samosbor/configs/local_pack_cnyrubf_ta_candidate.toml):
+  `+23.073% total return`, `3.728% max drawdown`, `Sharpe 1.760`, `1.726% avg monthly return`
+- Monte Carlo для базового кандидата:
+  `99.4%` вероятность положительного результата за 12 месяцев, но `0.0%` вероятность достижения целевых `5%` среднего месячного дохода
+- усиленный риск-профиль [configs/local_pack_cnyrubf_ta_aggressive.toml](/D:/projects/samosbor/configs/local_pack_cnyrubf_ta_aggressive.toml):
+  `+37.889% total return`, `5.591% max drawdown`, `Sharpe 1.906`, `2.71% avg monthly return`
+- Monte Carlo для усиленного профиля:
+  `99.8%` вероятность положительного результата и `0.9%` вероятность выйти на целевые `5%` среднего месячного дохода
+- ранее найденный агрессивный портфель [configs/local_pack_fx_index_ta_aggressive.toml](/D:/projects/samosbor/configs/local_pack_fx_index_ta_aggressive.toml):
   `USDRUBF + CNYRUBF + IMOEXF`, `+41.671% total return`, `10.77% max drawdown`, `3.09% avg monthly return`
 
-Итог текущего этапа: качество стратегии выросло, но цель `5%` в месяц пока не достигнута даже в усиленном портфельном профиле.
+Итог текущего этапа: исследовательский контур стал быстрее и полезнее, а лучший одиночный TA-профиль улучшен. Цель `5%` в месяц все еще не достигнута на устойчивой основе, но теперь у нас есть подтвержденный shortlist и воспроизводимые risk-up конфиги для следующего шага.
 
 ## Безопасность
 

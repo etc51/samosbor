@@ -17,20 +17,28 @@ history_days = 365
 local_data_pack_path = "D:/3_pips_x2_project/moex_futures_data_pack"
 
 [[data.instruments]]
+symbol = "USDRUBF"
+instrument_type = "future"
+
+[[data.instruments]]
 symbol = "CNYRUBF"
 instrument_type = "future"
 
+[[data.instruments]]
+symbol = "IMOEXF"
+instrument_type = "future"
+
 [strategy]
-style = "ema_adx_macd"
+style = "sma_breakout"
 fast_window = 10
 slow_window = 40
 atr_window = 14
 volume_window = 20
 breakout_window = 20
-require_breakout = false
-atr_stop_multiple = 1.5
-reward_to_risk = 2.0
-min_trend_strength = 0.002
+require_breakout = true
+atr_stop_multiple = 2.0
+reward_to_risk = 1.5
+min_trend_strength = 0.004
 min_liquidity_rub = 1000000
 allow_shorts = true
 adx_window = 14
@@ -49,7 +57,7 @@ max_risk_per_trade = 0.01
 max_gross_exposure = 1.5
 max_drawdown = 0.12
 cash_reserve_ratio = 0.10
-max_positions = 2
+max_positions = 4
 kelly_lookback_trades = 20
 min_trades_for_kelly = 8
 
@@ -57,7 +65,7 @@ min_trades_for_kelly = 8
 mode = "local-paper"
 slippage_bps = 2.0
 commission_bps = 2.0
-state_path = "state/local_pack_cnyrubf_ta_candidate_state.json"
+state_path = "state/local_pack_ta_research_state.json"
 allow_live_trading = false
 
 [backtest]
@@ -69,14 +77,17 @@ output_dir = "runs"
 write_csv = true
 
 [research]
-fast_windows = [10, 15, 20]
-slow_windows = [30, 40, 50]
-atr_stop_multipliers = [1.5, 2.0]
-reward_to_risk_values = [1.5, 2.0, 2.5]
-trend_strength_values = [0.002, 0.004, 0.006]
+strategy_styles = ["ema_adx_macd"]
+fast_windows = [10]
+slow_windows = [40]
+require_breakout_values = [false, true]
+atr_stop_multipliers = [1.5]
+reward_to_risk_values = [1.5, 2.0]
+trend_strength_values = [0.002, 0.004]
+adx_min_values = [15.0, 20.0]
 subset_min_size = 1
-subset_max_size = 1
-top_n = 10
+subset_max_size = 2
+top_n = 15
 min_trades = 8
 monte_carlo_iterations = 1000
 monte_carlo_horizon_months = 12

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from itertools import combinations, product
 
 from ..backtest.engine import BacktestEngine
@@ -15,11 +15,14 @@ from ..strategy.trend_following import TrendFollowingStrategy
 class OptimizationCandidate:
     score: float
     symbols: tuple[str, ...]
+    style: str
     fast_window: int
     slow_window: int
+    require_breakout: bool
     atr_stop_multiple: float
     reward_to_risk: float
     min_trend_strength: float
+    adx_min: float
     summary: dict[str, float | int]
 
     def to_dict(self) -> dict[str, object]:
@@ -57,6 +60,10 @@ class ParameterOptimizer:
         subset_min = max(1, self.research.subset_min_size)
         subset_max = max(subset_min, min(self.research.subset_max_size, len(symbols)))
         candidates: list[OptimizationCandidate] = []
+        styles = self.research.strategy_styles or [self.base_strategy.style]
+        breakout_values = (
+            self.research.require_breakout_values or [self.base_strategy.require_breakout]
+        )
 
         for subset_size in range(subset_min, subset_max + 1):
             for subset in combinations(symbols, subset_size):
@@ -64,48 +71,59 @@ class ParameterOptimizer:
                 subset_instruments = {
                     symbol: instruments_by_symbol[symbol] for symbol in subset
                 }
-                for fast, slow, atr_mult, rr, trend_strength in product(
-                    self.research.fast_windows,
-                    self.research.slow_windows,
-                    self.research.atr_stop_multipliers,
-                    self.research.reward_to_risk_values,
-                    self.research.trend_strength_values,
-                ):
-                    if fast >= slow:
-                        continue
+                for style in styles:
+                    normalized_style = style.strip().lower()
+                    adx_values = (
+                        self.research.adx_min_values
+                        if normalized_style == "ema_adx_macd"
+                        else [self.base_strategy.adx_min]
+                    )
+                    for fast, slow, require_breakout, atr_mult, rr, trend_strength, adx_min in product(
+                        self.research.fast_windows,
+                        self.research.slow_windows,
+                        breakout_values,
+                        self.research.atr_stop_multipliers,
+                        self.research.reward_to_risk_values,
+                        self.research.trend_strength_values,
+                        adx_values,
+                    ):
+                        if fast >= slow:
+                            continue
 
-                    strategy = StrategySection(
-                        fast_window=fast,
-                        slow_window=slow,
-                        atr_window=self.base_strategy.atr_window,
-                        volume_window=self.base_strategy.volume_window,
-                        breakout_window=self.base_strategy.breakout_window,
-                        atr_stop_multiple=atr_mult,
-                        reward_to_risk=rr,
-                        min_trend_strength=trend_strength,
-                        min_liquidity_rub=self.base_strategy.min_liquidity_rub,
-                        allow_shorts=self.base_strategy.allow_shorts,
-                    )
-                    engine = BacktestEngine(
-                        strategy=TrendFollowingStrategy(strategy, timeframe=self.timeframe),
-                        risk_manager=RiskManager(self.risk),
-                        backtest=self.backtest,
-                        slippage_bps=self.slippage_bps,
-                        commission_bps=self.commission_bps,
-                    )
-                    result = engine.run_with_instruments(subset_candles, subset_instruments)
-                    summary = compute_summary(result, timeframe=self.timeframe)
-                    candidate = OptimizationCandidate(
-                        score=self._score(summary),
-                        symbols=subset,
-                        fast_window=fast,
-                        slow_window=slow,
-                        atr_stop_multiple=atr_mult,
-                        reward_to_risk=rr,
-                        min_trend_strength=trend_strength,
-                        summary=summary,
-                    )
-                    candidates.append(candidate)
+                        strategy = replace(
+                            self.base_strategy,
+                            style=normalized_style,
+                            fast_window=fast,
+                            slow_window=slow,
+                            require_breakout=require_breakout,
+                            atr_stop_multiple=atr_mult,
+                            reward_to_risk=rr,
+                            min_trend_strength=trend_strength,
+                            adx_min=adx_min,
+                        )
+                        engine = BacktestEngine(
+                            strategy=TrendFollowingStrategy(strategy, timeframe=self.timeframe),
+                            risk_manager=RiskManager(self.risk),
+                            backtest=self.backtest,
+                            slippage_bps=self.slippage_bps,
+                            commission_bps=self.commission_bps,
+                        )
+                        result = engine.run_with_instruments(subset_candles, subset_instruments)
+                        summary = compute_summary(result, timeframe=self.timeframe)
+                        candidate = OptimizationCandidate(
+                            score=self._score(summary),
+                            symbols=subset,
+                            style=normalized_style,
+                            fast_window=fast,
+                            slow_window=slow,
+                            require_breakout=require_breakout,
+                            atr_stop_multiple=atr_mult,
+                            reward_to_risk=rr,
+                            min_trend_strength=trend_strength,
+                            adx_min=adx_min,
+                            summary=summary,
+                        )
+                        candidates.append(candidate)
 
         candidates.sort(key=lambda item: item.score, reverse=True)
         top = candidates[: self.research.top_n]

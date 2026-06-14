@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import warnings
 
 from ..analysis.context import ExternalContextProvider, NeutralContextProvider
 from ..analysis.indicators import annualized_volatility, atr, average_turnover, rolling_high, rolling_low, sma
@@ -33,8 +34,19 @@ class TrendFollowingStrategy:
         self.timeframe = timeframe
         self.context_provider = context_provider or NeutralContextProvider()
         self.style = config.style.strip().lower()
+        self._prepared_ta: dict[str, dict[str, object]] = {}
         if self.style not in {"sma_breakout", "ema_adx_macd"}:
             raise ValueError(f"Unsupported strategy style: {config.style}")
+
+    def prepare_history(self, instrument: Instrument, candles: list[Candle]) -> None:
+        if self.style != "ema_adx_macd" or not candles:
+            return
+        features = self._compute_ta_feature_series(candles)
+        timestamps = [candle.timestamp for candle in candles]
+        self._prepared_ta[instrument.instrument_id] = {
+            "timestamps": timestamps,
+            "features": features,
+        }
 
     def _required_bars(self) -> int:
         required = max(
@@ -99,7 +111,7 @@ class TrendFollowingStrategy:
         breakout_short = last.close <= breakout_low if self.config.require_breakout else True
 
         if self.style == "ema_adx_macd":
-            ta_features = self._ta_features(candles)
+            ta_features = self._resolved_ta_features(instrument, candles)
             if ta_features is None:
                 return None
             fast = ta_features["ema_fast"]
@@ -240,24 +252,52 @@ class TrendFollowingStrategy:
             },
         )
 
-    def _ta_features(self, candles: list[Candle]) -> dict[str, float] | None:
+    def _resolved_ta_features(
+        self,
+        instrument: Instrument,
+        candles: list[Candle],
+    ) -> dict[str, float] | None:
+        prepared = self._prepared_ta.get(instrument.instrument_id)
+        if prepared is not None and candles:
+            timestamps = prepared["timestamps"]
+            features = prepared["features"]
+            index = len(candles) - 1
+            if index < len(timestamps) and timestamps[index] == candles[-1].timestamp:
+                return features[index]
+        return self._ta_features(candles)
+
+    def _ta_dependencies(self):
         try:
             import pandas as pd
-            import pandas_ta as ta
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message=".*mode.copy_on_write.*",
+                )
+                import pandas_ta as ta
         except ImportError as exc:  # pragma: no cover - optional dependency
             raise RuntimeError(
                 "TA indicator mode requires pandas and pandas-ta to be installed."
             ) from exc
+        return pd, ta
 
+    def _ta_features(self, candles: list[Candle]) -> dict[str, float] | None:
         window = max(self._required_bars() + 5, 250)
         subset = candles[-window:]
+        features = self._compute_ta_feature_series(subset)
+        if not features:
+            return None
+        return features[-1]
+
+    def _compute_ta_feature_series(self, candles: list[Candle]) -> list[dict[str, float] | None]:
+        pd, ta = self._ta_dependencies()
         frame = pd.DataFrame(
             {
-                "open": [candle.open for candle in subset],
-                "high": [candle.high for candle in subset],
-                "low": [candle.low for candle in subset],
-                "close": [candle.close for candle in subset],
-                "volume": [candle.volume for candle in subset],
+                "open": [candle.open for candle in candles],
+                "high": [candle.high for candle in candles],
+                "low": [candle.low for candle in candles],
+                "close": [candle.close for candle in candles],
+                "volume": [candle.volume for candle in candles],
             }
         )
         ema_fast = ta.ema(frame["close"], length=self.config.fast_window)
@@ -276,19 +316,23 @@ class TrendFollowingStrategy:
             length=self.config.adx_window,
         )
         if macd is None or adx is None:
-            return None
+            return [None for _ in candles]
 
-        latest = {
-            "ema_fast": float(ema_fast.iloc[-1]) if ema_fast is not None else math.nan,
-            "ema_slow": float(ema_slow.iloc[-1]) if ema_slow is not None else math.nan,
-            "rsi": float(rsi.iloc[-1]) if rsi is not None else math.nan,
-            "macd": float(macd.iloc[-1, 0]),
-            "macd_hist": float(macd.iloc[-1, 1]),
-            "macd_signal": float(macd.iloc[-1, 2]),
-            "adx": float(adx.iloc[-1, 0]),
-            "dmp": float(adx.iloc[-1, 1]),
-            "dmn": float(adx.iloc[-1, 2]),
-        }
-        if any(math.isnan(value) for value in latest.values()):
-            return None
-        return latest
+        series: list[dict[str, float] | None] = []
+        for index in range(len(candles)):
+            values = {
+                "ema_fast": float(ema_fast.iloc[index]) if ema_fast is not None else math.nan,
+                "ema_slow": float(ema_slow.iloc[index]) if ema_slow is not None else math.nan,
+                "rsi": float(rsi.iloc[index]) if rsi is not None else math.nan,
+                "macd": float(macd.iloc[index, 0]),
+                "macd_hist": float(macd.iloc[index, 1]),
+                "macd_signal": float(macd.iloc[index, 2]),
+                "adx": float(adx.iloc[index, 0]),
+                "dmp": float(adx.iloc[index, 1]),
+                "dmn": float(adx.iloc[index, 2]),
+            }
+            if any(math.isnan(value) for value in values.values()):
+                series.append(None)
+                continue
+            series.append(values)
+        return series

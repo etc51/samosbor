@@ -87,6 +87,7 @@
 - стиль `ema_adx_macd` включает `EMA`, `ADX`, `RSI` и `MACD` через `pandas-ta`
 - `require_breakout` позволяет оставить жёсткий пробойный фильтр или отключить его для более раннего входа
 - стиль выбирается через `strategy.style` в TOML-конфиге
+- в backtest/paper-cycle стратегия может предвычислять TA-ряды на полном history, чтобы не пересчитывать индикаторы на каждом баре
 
 ### 5. Риск-менеджмент
 
@@ -159,6 +160,7 @@
 - ranking кандидатов по composite score
 - Monte Carlo по наблюдаемым месячным доходностям
 - отдельные research-конфиги под локальный parquet-архив на `D:`
+- перебор `strategy_styles`, `require_breakout_values` и `adx_min_values` для TA-ветки
 
 CLI:
 
@@ -188,5 +190,5 @@ CLI-сценарии:
 - Monte-Carlo и stress testing
 - dashboard/monitoring
 - feature store и ML-модели поверх базовой стратегии
-- ускорение TA-режима через кеширование/precompute индикаторов для крупных optimizer-сеток
 - futures-aware модель маржи и риска вместо приближённого notional-подхода
+- walk-forward validation поверх новых TA research-профилей

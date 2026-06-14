@@ -177,6 +177,8 @@ class TradingOrchestrator:
 
         timestamp = datetime.now(timezone.utc)
         strategy = self._strategy()
+        for instrument in instruments:
+            strategy.prepare_history(instrument, history.get(instrument.symbol, []))
         risk_manager = self._risk_manager()
         cycle_events: list[dict[str, object]] = []
 

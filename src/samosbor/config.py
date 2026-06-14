@@ -108,11 +108,14 @@ class ReportingSection:
 
 @dataclass(frozen=True)
 class ResearchSection:
+    strategy_styles: list[str] = field(default_factory=lambda: ["sma_breakout"])
     fast_windows: list[int] = field(default_factory=lambda: [10, 15, 20])
     slow_windows: list[int] = field(default_factory=lambda: [30, 40, 50])
+    require_breakout_values: list[bool] = field(default_factory=lambda: [True])
     atr_stop_multipliers: list[float] = field(default_factory=lambda: [1.5, 2.0])
     reward_to_risk_values: list[float] = field(default_factory=lambda: [1.5, 2.0, 2.5])
     trend_strength_values: list[float] = field(default_factory=lambda: [0.004, 0.006])
+    adx_min_values: list[float] = field(default_factory=lambda: [20.0])
     subset_min_size: int = 1
     subset_max_size: int = 3
     top_n: int = 10
