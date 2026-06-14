@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Samosbor paper cycle hourly during MOEX futures session
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 06,07,08,09,10,11,12,13,14,15,16,17,18,19,20:07:00 UTC
+Persistent=true
+Unit=samosbor-paper-cycle.service
+
+[Install]
+WantedBy=timers.target

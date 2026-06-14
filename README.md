@@ -29,6 +29,7 @@
 - `configs/local_pack_cnyrubf_ta_walk_forward.toml` — walk-forward валидация для `CNYRUBF` TA-кандидата
 - `configs/local_pack_cnyrubf_ta_aggressive.toml` — усиленный риск-профиль для лучшего `CNYRUBF`-кандидата
 - `configs/local_pack_fx_index_ta_aggressive.toml` — более агрессивный TA-портфель `USDRUBF + CNYRUBF + IMOEXF`
+- `configs/server_tbank_cnyrubf_premium.toml` — серверный paper-runtime для `CNYRUBF` через T-Bank API
 - `docs/architecture.md` — архитектура и логика работы
 - `requirements-tbank.txt` — установка актуального SDK Т-Банка
 - `tests/` — smoke/unit tests
@@ -75,6 +76,25 @@ SSL_TBANK_VERIFY=True
 ```powershell
 .\.venv\Scripts\python -m samosbor.cli --config configs/paper.toml paper-cycle
 ```
+
+## Server Runtime
+
+Для 24/7 серверного paper-режима подготовлены:
+
+- runtime-конфиг [configs/server_tbank_cnyrubf_premium.toml](/D:/projects/samosbor/configs/server_tbank_cnyrubf_premium.toml)
+- server scripts в [scripts/server](/D:/projects/samosbor/scripts/server)
+- systemd units в [deploy/systemd](/D:/projects/samosbor/deploy/systemd)
+
+Логика расписания:
+
+- systemd timer запускает `paper-cycle` каждый час в широкое MOEX futures-окно
+- сами входы в позицию ограничены data-driven часами `09,10,12,15,16,17,18,20,21` по Москве
+- это выбрано по фактическому разбору `CNYRUBF` trade log: часы `11,13,19,22,23` сейчас выглядят как слабые или отрицательные
+
+Автообновление:
+
+- `samosbor-updater.timer` проверяет GitHub каждые `15` минут
+- при новом коммите делает `git pull --ff-only`, обновляет окружение и прогоняет unit tests
 
 ## Research На Данных С D:
 

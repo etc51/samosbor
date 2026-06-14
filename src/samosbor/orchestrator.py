@@ -269,6 +269,20 @@ class TradingOrchestrator:
                 position = None
 
             if position is None:
+                if not strategy.allows_entry_at(latest.timestamp):
+                    cycle_events.append(
+                        {
+                            "timestamp": latest.timestamp.isoformat(),
+                            "symbol": instrument.symbol,
+                            "action": "signal",
+                            "approved": False,
+                            "reason": "entry blocked by schedule",
+                            "direction": signal.direction.value,
+                            "strength": signal.strength,
+                            "quantity_lots": 0,
+                        }
+                    )
+                    continue
                 decision = risk_manager.approve(broker.portfolio, signal, marks, broker.trades)
                 cycle_events.append(
                     {

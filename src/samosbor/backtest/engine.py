@@ -90,26 +90,40 @@ class BacktestEngine:
                             )
                             position = None
                         if position is None:
-                            decision = self.risk_manager.approve(
-                                broker.portfolio,
-                                signal,
-                                {**latest_marks, symbol: candle.close},
-                                broker.trades,
-                            )
-                            events.append(
-                                {
-                                    "timestamp": timestamp.isoformat(),
-                                    "symbol": symbol,
-                                    "action": "signal",
-                                    "approved": decision.approved,
-                                    "reason": decision.reason,
-                                    "direction": signal.direction.value,
-                                    "strength": signal.strength,
-                                    "quantity_lots": decision.quantity_lots,
-                                }
-                            )
-                            if decision.approved:
-                                broker.open_position(signal, decision.quantity_lots, timestamp)
+                            if not self.strategy.allows_entry_at(timestamp):
+                                events.append(
+                                    {
+                                        "timestamp": timestamp.isoformat(),
+                                        "symbol": symbol,
+                                        "action": "signal",
+                                        "approved": False,
+                                        "reason": "entry blocked by schedule",
+                                        "direction": signal.direction.value,
+                                        "strength": signal.strength,
+                                        "quantity_lots": 0,
+                                    }
+                                )
+                            else:
+                                decision = self.risk_manager.approve(
+                                    broker.portfolio,
+                                    signal,
+                                    {**latest_marks, symbol: candle.close},
+                                    broker.trades,
+                                )
+                                events.append(
+                                    {
+                                        "timestamp": timestamp.isoformat(),
+                                        "symbol": symbol,
+                                        "action": "signal",
+                                        "approved": decision.approved,
+                                        "reason": decision.reason,
+                                        "direction": signal.direction.value,
+                                        "strength": signal.strength,
+                                        "quantity_lots": decision.quantity_lots,
+                                    }
+                                )
+                                if decision.approved:
+                                    broker.open_position(signal, decision.quantity_lots, timestamp)
 
             equity = broker.mark_to_market(latest_marks, timestamp)
             equity_curve.append(

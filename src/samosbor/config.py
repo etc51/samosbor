@@ -72,6 +72,9 @@ class StrategySection:
     macd_fast: int = 12
     macd_slow: int = 26
     macd_signal: int = 9
+    schedule_timezone: str = "Europe/Moscow"
+    allowed_entry_hours: list[int] = field(default_factory=list)
+    allowed_entry_weekdays: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
 
 
 @dataclass(frozen=True)

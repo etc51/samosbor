@@ -137,6 +137,22 @@ class TrendFollowingTATest(unittest.TestCase):
                 timeframe="hour",
             )
 
+    def test_entry_schedule_uses_moscow_hours(self):
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                allowed_entry_hours=[12],
+                allowed_entry_weekdays=[2],
+                schedule_timezone="Europe/Moscow",
+            ),
+            timeframe="hour",
+        )
+
+        allowed_timestamp = datetime(2025, 1, 1, 9, 0, tzinfo=timezone.utc)
+        blocked_timestamp = datetime(2025, 1, 1, 10, 0, tzinfo=timezone.utc)
+
+        self.assertTrue(strategy.allows_entry_at(allowed_timestamp))
+        self.assertFalse(strategy.allows_entry_at(blocked_timestamp))
+
 
 if __name__ == "__main__":
     unittest.main()

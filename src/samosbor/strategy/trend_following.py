@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 import warnings
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from ..analysis.context import ExternalContextProvider, NeutralContextProvider
 from ..analysis.indicators import annualized_volatility, atr, average_turnover, rolling_high, rolling_low, sma
@@ -37,6 +39,7 @@ class TrendFollowingStrategy:
         self._prepared_ta: dict[str, dict[str, object]] = {}
         if self.style not in {"sma_breakout", "ema_adx_macd"}:
             raise ValueError(f"Unsupported strategy style: {config.style}")
+        self.schedule_timezone = ZoneInfo(config.schedule_timezone)
 
     def prepare_history(self, instrument: Instrument, candles: list[Candle]) -> None:
         if self.style != "ema_adx_macd" or not candles:
@@ -47,6 +50,14 @@ class TrendFollowingStrategy:
             "timestamps": timestamps,
             "features": features,
         }
+
+    def allows_entry_at(self, timestamp: datetime) -> bool:
+        localized = timestamp.astimezone(self.schedule_timezone)
+        if self.config.allowed_entry_weekdays and localized.weekday() not in self.config.allowed_entry_weekdays:
+            return False
+        if self.config.allowed_entry_hours and localized.hour not in self.config.allowed_entry_hours:
+            return False
+        return True
 
     def _required_bars(self) -> int:
         required = max(

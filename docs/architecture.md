@@ -180,9 +180,25 @@ CLI-сценарии:
 - `accounts`
 - `backtest`
 - `paper-cycle`
+- `walk-forward`
 - `sandbox-init`
 - `optimize`
 - `monte-carlo`
+
+## Server Deployment
+
+Файлы:
+
+- [configs/server_tbank_cnyrubf_premium.toml](/D:/projects/samosbor/configs/server_tbank_cnyrubf_premium.toml)
+- [scripts/server](/D:/projects/samosbor/scripts/server)
+- [deploy/systemd](/D:/projects/samosbor/deploy/systemd)
+
+Текущая серверная схема:
+
+- runtime работает в `local-paper`
+- market data приходят через T-Bank API
+- systemd timer вызывает `paper-cycle` каждый час в торговую сессию
+- entry schedule дополнительно фильтруется на уровне стратегии через `allowed_entry_hours` по `Europe/Moscow`
 
 ## Дальнейшее развитие
 
