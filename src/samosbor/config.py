@@ -162,6 +162,9 @@ def _parse_instrument(payload: dict[str, Any]) -> Instrument:
         lot_size=int(payload.get("lot_size", 1)),
         tick_size=float(payload.get("tick_size", 0.01)),
         currency=payload.get("currency", "rub"),
+        initial_margin_buy=float(payload.get("initial_margin_buy", 0.0)),
+        initial_margin_sell=float(payload.get("initial_margin_sell", 0.0)),
+        tick_value=float(payload.get("tick_value", 0.0)),
     )
 
 

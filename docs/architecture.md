@@ -101,7 +101,8 @@
 - cash reserve
 - аварийная остановка по max drawdown
 - динамическое масштабирование через упрощённый half-Kelly
-- risk-up профили допускают использование маржинального капитала через `max_gross_exposure > 1.0`, но без полной брокерской модели переноса
+- risk-up профили допускают использование маржинального капитала через `max_gross_exposure > 1.0`
+- если для futures известны `initial_margin_buy`/`initial_margin_sell`, лимит gross exposure интерпретируется как лимит суммарно зарезервированного ГО, а не как notional
 
 ### 6. Исполнение
 
@@ -116,7 +117,8 @@
 - учитывает slippage и commission
 - считает cash/equity
 - сохраняет состояние в `state/paper_state.json`
-- текущая paper-модель еще не знает официальные T-Bank margin haircuts и carry-cost по непокрытым позициям
+- для futures с T-Bank metadata использует официальное ГО брокера при открытии позиции и учитывает PnL как variation margin без списания полного notional
+- стоимость переноса непокрытых позиций и прочие carry-cost пока не моделируются
 
 `TBankSandboxExecutor`:
 
@@ -197,6 +199,7 @@ CLI-сценарии:
 
 - runtime работает в `local-paper`
 - market data приходят через T-Bank API
+- для futures runtime дополнительно подтягивает `GetFuturesMargin` и использует его в sizing/risk checks
 - systemd timer вызывает `paper-cycle` каждый час в торговую сессию
 - entry schedule дополнительно фильтруется на уровне стратегии через `allowed_entry_hours` по `Europe/Moscow`
 
@@ -210,5 +213,4 @@ CLI-сценарии:
 - Monte-Carlo и stress testing
 - dashboard/monitoring
 - feature store и ML-модели поверх базовой стратегии
-- futures-aware модель маржи и риска вместо приближённого notional-подхода
 - интеграция официальной T-Bank Premium margin-стоимости переноса в paper broker и backtest

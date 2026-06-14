@@ -89,6 +89,12 @@ class TBankMarketDataProvider:
 
         _, _, tbank_instrument_type, _, _, quotation_to_decimal = _sdk_imports()
         try:
+            from t_tech.invest.utils import money_to_decimal
+        except ImportError as exc:  # pragma: no cover - depends on external package
+            raise TBankDependencyError(
+                "T-Bank SDK is not installed. Install requirements-tbank.txt first."
+            ) from exc
+        try:
             from t_tech.invest import InstrumentIdType
         except ImportError as exc:  # pragma: no cover - depends on external package
             raise TBankDependencyError(
@@ -121,11 +127,13 @@ class TBankMarketDataProvider:
                     id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_UID,
                     id=candidate.uid,
                 ).instrument
+                margin = None
             else:
                 full = client.instruments.future_by(
                     id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_UID,
                     id=candidate.uid,
                 ).instrument
+                margin = client.instruments.get_futures_margin(instrument_id=candidate.uid)
 
         resolved = Instrument(
             symbol=instrument.symbol,
@@ -136,13 +144,26 @@ class TBankMarketDataProvider:
             lot_size=int(getattr(full, "lot", instrument.lot_size or 1)),
             tick_size=float(quotation_to_decimal(full.min_price_increment)),
             currency=getattr(full, "currency", instrument.currency),
+            initial_margin_buy=(
+                float(money_to_decimal(margin.initial_margin_on_buy)) if margin is not None else 0.0
+            ),
+            initial_margin_sell=(
+                float(money_to_decimal(margin.initial_margin_on_sell)) if margin is not None else 0.0
+            ),
+            tick_value=(
+                float(quotation_to_decimal(margin.min_price_increment_amount))
+                if margin is not None
+                else 0.0
+            ),
         )
         LOGGER.info(
-            "Resolved %s as uid=%s figi=%s lot=%s",
+            "Resolved %s as uid=%s figi=%s lot=%s margin_buy=%.2f margin_sell=%.2f",
             resolved.symbol,
             resolved.uid,
             resolved.figi,
             resolved.lot_size,
+            resolved.initial_margin_buy,
+            resolved.initial_margin_sell,
         )
         return resolved
 

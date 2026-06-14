@@ -41,6 +41,9 @@ class Instrument:
     lot_size: int = 1
     tick_size: float = 0.01
     currency: str = "rub"
+    initial_margin_buy: float = 0.0
+    initial_margin_sell: float = 0.0
+    tick_value: float = 0.0
 
     @property
     def instrument_id(self) -> str:
@@ -86,6 +89,7 @@ class Position:
     quantity_lots: int
     entry_price: float
     entry_commission: float
+    margin_requirement: float
     current_price: float
     stop_price: float
     take_profit: float
@@ -107,6 +111,8 @@ class Position:
 
     def market_value(self, price: float | None = None) -> float:
         mark = self.current_price if price is None else price
+        if self.instrument.instrument_type == InstrumentType.FUTURE:
+            return self.unrealized_pnl(mark)
         return self.signed_units * mark
 
     def unrealized_pnl(self, price: float | None = None) -> float:
@@ -126,11 +132,15 @@ class Position:
                 "lot_size": self.instrument.lot_size,
                 "tick_size": self.instrument.tick_size,
                 "currency": self.instrument.currency,
+                "initial_margin_buy": self.instrument.initial_margin_buy,
+                "initial_margin_sell": self.instrument.initial_margin_sell,
+                "tick_value": self.instrument.tick_value,
             },
             "direction": self.direction.value,
             "quantity_lots": self.quantity_lots,
             "entry_price": self.entry_price,
             "entry_commission": self.entry_commission,
+            "margin_requirement": self.margin_requirement,
             "current_price": self.current_price,
             "stop_price": self.stop_price,
             "take_profit": self.take_profit,
@@ -150,6 +160,9 @@ class Position:
             lot_size=int(instrument_payload.get("lot_size", 1)),
             tick_size=float(instrument_payload.get("tick_size", 0.01)),
             currency=instrument_payload.get("currency", "rub"),
+            initial_margin_buy=float(instrument_payload.get("initial_margin_buy", 0.0)),
+            initial_margin_sell=float(instrument_payload.get("initial_margin_sell", 0.0)),
+            tick_value=float(instrument_payload.get("tick_value", 0.0)),
         )
         return cls(
             instrument=instrument,
@@ -157,6 +170,7 @@ class Position:
             quantity_lots=int(payload["quantity_lots"]),
             entry_price=float(payload["entry_price"]),
             entry_commission=float(payload.get("entry_commission", 0.0)),
+            margin_requirement=float(payload.get("margin_requirement", 0.0)),
             current_price=float(payload["current_price"]),
             stop_price=float(payload["stop_price"]),
             take_profit=float(payload["take_profit"]),
@@ -184,6 +198,9 @@ class PortfolioState:
         for symbol, position in self.positions.items():
             total += position.notional(marks.get(symbol, position.current_price))
         return total
+
+    def margin_reserved(self) -> float:
+        return sum(position.margin_requirement for position in self.positions.values())
 
     def to_dict(self) -> dict[str, Any]:
         return {

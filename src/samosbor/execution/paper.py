@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from ..domain import ExitReason, PortfolioState, Position, Signal, SignalDirection, TradeRecord
+from ..domain import ExitReason, InstrumentType, PortfolioState, Position, Signal, SignalDirection, TradeRecord
 
 
 class LocalPaperBroker:
@@ -116,11 +116,19 @@ class LocalPaperBroker:
         units = quantity_lots * signal.instrument.lot_size
         notional = fill_price * units
         commission = self._commission(notional)
+        margin_requirement = 0.0
 
-        if signal.direction == SignalDirection.LONG:
-            self.portfolio.cash -= notional + commission
+        if signal.instrument.instrument_type == InstrumentType.FUTURE:
+            if signal.direction == SignalDirection.LONG:
+                margin_requirement = signal.instrument.initial_margin_buy * quantity_lots
+            else:
+                margin_requirement = signal.instrument.initial_margin_sell * quantity_lots
+            self.portfolio.cash -= commission
         else:
-            self.portfolio.cash += notional - commission
+            if signal.direction == SignalDirection.LONG:
+                self.portfolio.cash -= notional + commission
+            else:
+                self.portfolio.cash += notional - commission
 
         position = Position(
             instrument=signal.instrument,
@@ -128,6 +136,7 @@ class LocalPaperBroker:
             quantity_lots=quantity_lots,
             entry_price=fill_price,
             entry_commission=commission,
+            margin_requirement=margin_requirement,
             current_price=fill_price,
             stop_price=signal.stop_price,
             take_profit=signal.take_profit,
@@ -144,6 +153,7 @@ class LocalPaperBroker:
                 "quantity_lots": quantity_lots,
                 "fill_price": fill_price,
                 "commission": commission,
+                "margin_requirement": margin_requirement,
                 "reason": signal.reason,
             }
         )
@@ -167,12 +177,19 @@ class LocalPaperBroker:
         notional = fill_price * units
         commission = self._commission(notional)
 
-        if position.direction == SignalDirection.LONG:
-            self.portfolio.cash += notional - commission
-            gross_pnl = (fill_price - position.entry_price) * units
+        if position.instrument.instrument_type == InstrumentType.FUTURE:
+            if position.direction == SignalDirection.LONG:
+                gross_pnl = (fill_price - position.entry_price) * units
+            else:
+                gross_pnl = (position.entry_price - fill_price) * units
+            self.portfolio.cash += gross_pnl - commission
         else:
-            self.portfolio.cash -= notional + commission
-            gross_pnl = (position.entry_price - fill_price) * units
+            if position.direction == SignalDirection.LONG:
+                self.portfolio.cash += notional - commission
+                gross_pnl = (fill_price - position.entry_price) * units
+            else:
+                self.portfolio.cash -= notional + commission
+                gross_pnl = (position.entry_price - fill_price) * units
 
         net_pnl = gross_pnl - position.entry_commission - commission
         self.portfolio.realized_pnl += net_pnl

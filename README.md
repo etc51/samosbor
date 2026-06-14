@@ -95,6 +95,7 @@ SSL_TBANK_VERIFY=True
 
 - `samosbor-updater.timer` проверяет GitHub каждые `15` минут
 - при новом коммите делает `git pull --ff-only`, обновляет окружение и прогоняет unit tests
+- для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
 
 ## Research На Данных С D:
 
@@ -180,7 +181,9 @@ Walk-forward для [configs/local_pack_cnyrubf_ta_walk_forward.toml](/D:/projec
 - рабочее допущение проекта: счёт Т-Банка с тарифом `Premium`
 - futures research-конфиги сейчас используют `commission_bps = 2.0` как paper-аппроксимацию под Premium-профиль
 - использование маржинальных средств допустимо и уже отражается в risk-up конфигурациях через `max_gross_exposure > 1.0`
-- полная модель стоимости переноса непокрытых позиций и инструмент-специфичных margin requirements Т-Банка пока не встроена в paper broker
+- серверный futures paper-runtime теперь подтягивает инструмент-специфичное ГО Т-Банка и использует его для sizing и проверки доступной маржи
+- локальные backtest/research на parquet-архиве по-прежнему работают без онлайн-запроса к брокеру, поэтому для них нужна явная передача `initial_margin_*` в конфиг, если хочется симулировать ту же margin-модель
+- стоимость переноса непокрытых позиций, overnight financing и прочие broker-specific carry costs пока не встроены
 - официальные справочные страницы Т-Банка:
   [тарифы инвестора](https://www.tbank.ru/invest/help/brokerage/account/get-bs/tariff/)
   и [маржинальная торговля](https://www.tbank.ru/invest/help/brokerage/account/margin/advantages/)
