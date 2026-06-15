@@ -24,10 +24,11 @@ def _trade(
     exit_time: datetime,
     net_pnl: float,
     reason: str = "take-profit",
+    direction: SignalDirection = SignalDirection.LONG,
 ) -> TradeRecord:
     return TradeRecord(
         symbol=symbol,
-        direction=SignalDirection.LONG,
+        direction=direction,
         quantity_lots=1,
         entry_time=entry_time,
         exit_time=exit_time,
@@ -222,10 +223,13 @@ class EntrySymbolAutonomyTest(unittest.TestCase):
             trades,
             timezone_name="Europe/Moscow",
             current_blocked_symbols=[],
+            current_blocked_long_symbols=[],
+            current_blocked_short_symbols=[],
             evidence_source="signal-feedback",
             report_date=date(2025, 1, 31),
             lookback_days=45,
             min_trades_per_symbol=4,
+            min_trades_per_direction_symbol=4,
             max_symbols_to_block=1,
             max_total_blocked_symbols=4,
         )
@@ -234,6 +238,8 @@ class EntrySymbolAutonomyTest(unittest.TestCase):
         self.assertEqual(payload["evidence_source"], "signal-feedback")
         self.assertEqual(payload["additions"], ["IMOEXF"])
         self.assertEqual(payload["proposed_blocked_symbols"], ["IMOEXF"])
+        self.assertEqual(payload["proposed_blocked_long_symbols"], [])
+        self.assertEqual(payload["proposed_blocked_short_symbols"], [])
 
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir)
@@ -241,6 +247,225 @@ class EntrySymbolAutonomyTest(unittest.TestCase):
             self.assertTrue((output_dir / "symbol_restrictions.json").exists())
             self.assertTrue((output_dir / "symbol_restrictions_patch.toml").exists())
             self.assertTrue((output_dir / "summary.md").exists())
+
+    def test_tuning_can_block_only_weak_direction_for_symbol(self):
+        portfolio = PortfolioState(cash=100_000.0, peak_equity=100_000.0)
+        trades = [
+            _trade(
+                symbol="SBER",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 10, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 10, 8, 0, tzinfo=timezone.utc),
+                net_pnl=-100.0,
+            ),
+            _trade(
+                symbol="SBER",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 11, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 11, 8, 0, tzinfo=timezone.utc),
+                net_pnl=-90.0,
+            ),
+            _trade(
+                symbol="SBER",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 12, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 12, 8, 0, tzinfo=timezone.utc),
+                net_pnl=-80.0,
+            ),
+            _trade(
+                symbol="SBER",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 13, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 13, 8, 0, tzinfo=timezone.utc),
+                net_pnl=-70.0,
+            ),
+            _trade(
+                symbol="SBER",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 10, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 10, 9, 0, tzinfo=timezone.utc),
+                net_pnl=170.0,
+            ),
+            _trade(
+                symbol="SBER",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 11, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 11, 9, 0, tzinfo=timezone.utc),
+                net_pnl=160.0,
+            ),
+            _trade(
+                symbol="SBER",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 12, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 12, 9, 0, tzinfo=timezone.utc),
+                net_pnl=150.0,
+            ),
+            _trade(
+                symbol="SBER",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 13, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 13, 9, 0, tzinfo=timezone.utc),
+                net_pnl=140.0,
+            ),
+            _trade(
+                symbol="GAZP",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 10, 8, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 10, 10, 0, tzinfo=timezone.utc),
+                net_pnl=180.0,
+            ),
+            _trade(
+                symbol="GAZP",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 11, 8, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 11, 10, 0, tzinfo=timezone.utc),
+                net_pnl=170.0,
+            ),
+            _trade(
+                symbol="GAZP",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 12, 8, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 12, 10, 0, tzinfo=timezone.utc),
+                net_pnl=160.0,
+            ),
+            _trade(
+                symbol="GAZP",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 13, 8, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 13, 10, 0, tzinfo=timezone.utc),
+                net_pnl=150.0,
+            ),
+            _trade(
+                symbol="GAZP",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 10, 9, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 10, 11, 0, tzinfo=timezone.utc),
+                net_pnl=-100.0,
+            ),
+            _trade(
+                symbol="GAZP",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 11, 9, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 11, 11, 0, tzinfo=timezone.utc),
+                net_pnl=-90.0,
+            ),
+            _trade(
+                symbol="GAZP",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 12, 9, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 12, 11, 0, tzinfo=timezone.utc),
+                net_pnl=-80.0,
+            ),
+            _trade(
+                symbol="GAZP",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 13, 9, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 13, 11, 0, tzinfo=timezone.utc),
+                net_pnl=-70.0,
+            ),
+        ]
+
+        payload = build_entry_symbol_tuning_payload(
+            portfolio,
+            trades,
+            timezone_name="Europe/Moscow",
+            current_blocked_symbols=[],
+            current_blocked_long_symbols=[],
+            current_blocked_short_symbols=[],
+            evidence_source="signal-feedback",
+            report_date=date(2025, 1, 31),
+            lookback_days=45,
+            min_trades_per_symbol=4,
+            min_trades_per_direction_symbol=4,
+            max_symbols_to_block=1,
+            max_total_blocked_symbols=4,
+        )
+
+        self.assertTrue(payload["changed"])
+        self.assertEqual(payload["proposed_blocked_symbols"], [])
+        self.assertEqual(payload["long_additions"], ["SBER"])
+        self.assertEqual(payload["short_additions"], ["GAZP"])
+        self.assertEqual(payload["proposed_blocked_long_symbols"], ["SBER"])
+        self.assertEqual(payload["proposed_blocked_short_symbols"], ["GAZP"])
+
+    def test_directional_tuning_uses_unrounded_negative_expectancy(self):
+        portfolio = PortfolioState(cash=100_000.0, peak_equity=100_000.0)
+        trades = [
+            _trade(
+                symbol="VTBR",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 10, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 10, 8, 0, tzinfo=timezone.utc),
+                net_pnl=0.10,
+            ),
+            _trade(
+                symbol="VTBR",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 11, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 11, 8, 0, tzinfo=timezone.utc),
+                net_pnl=0.09,
+            ),
+            _trade(
+                symbol="VTBR",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 12, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 12, 8, 0, tzinfo=timezone.utc),
+                net_pnl=0.08,
+            ),
+            _trade(
+                symbol="VTBR",
+                direction=SignalDirection.LONG,
+                entry_time=datetime(2025, 1, 13, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 13, 8, 0, tzinfo=timezone.utc),
+                net_pnl=0.07,
+            ),
+            _trade(
+                symbol="VTBR",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 10, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 10, 9, 0, tzinfo=timezone.utc),
+                net_pnl=-0.004,
+            ),
+            _trade(
+                symbol="VTBR",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 11, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 11, 9, 0, tzinfo=timezone.utc),
+                net_pnl=-0.004,
+            ),
+            _trade(
+                symbol="VTBR",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 12, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 12, 9, 0, tzinfo=timezone.utc),
+                net_pnl=-0.004,
+            ),
+            _trade(
+                symbol="VTBR",
+                direction=SignalDirection.SHORT,
+                entry_time=datetime(2025, 1, 13, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 13, 9, 0, tzinfo=timezone.utc),
+                net_pnl=-0.004,
+            ),
+        ]
+
+        payload = build_entry_symbol_tuning_payload(
+            portfolio,
+            trades,
+            timezone_name="Europe/Moscow",
+            current_blocked_symbols=[],
+            current_blocked_long_symbols=[],
+            current_blocked_short_symbols=[],
+            evidence_source="signal-feedback",
+            report_date=date(2025, 1, 31),
+            lookback_days=45,
+            min_trades_per_symbol=4,
+            min_trades_per_direction_symbol=4,
+        )
+
+        self.assertEqual(payload["proposed_blocked_symbols"], [])
+        self.assertEqual(payload["short_additions"], ["VTBR"])
+        self.assertEqual(payload["proposed_blocked_short_symbols"], ["VTBR"])
 
 
 if __name__ == "__main__":

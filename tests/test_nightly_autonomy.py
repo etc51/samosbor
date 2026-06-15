@@ -83,6 +83,12 @@ class FakeNightlyOrchestrator(TradingOrchestrator):
             "current_blocked_symbols": [],
             "proposed_blocked_symbols": [],
             "additions": [],
+            "current_blocked_long_symbols": [],
+            "proposed_blocked_long_symbols": [],
+            "long_additions": [],
+            "current_blocked_short_symbols": [],
+            "proposed_blocked_short_symbols": [],
+            "short_additions": [],
             "output_dir": "runs/autotune/entry-symbols/fake",
         }
 
@@ -262,9 +268,9 @@ class NightlyAutonomyTest(unittest.TestCase):
                 orchestrator.calls,
                 [
                     "paper-report",
+                    "bootstrap-entry-feedback",
                     "tune-entry-hours",
                     "tune-entry-symbols",
-                    "bootstrap-entry-feedback",
                     "tune-entry-quality",
                     "optimize",
                     "walk-forward",
@@ -278,6 +284,8 @@ class NightlyAutonomyTest(unittest.TestCase):
             self.assertEqual(result["restrictions"]["entry_schedule"]["proposed_hours"], [10, 12])
             self.assertEqual(result["restrictions"]["entry_schedule"]["evidence_source"], "signal-feedback")
             self.assertEqual(result["restrictions"]["entry_symbols"]["proposed_blocked_symbols"], [])
+            self.assertEqual(result["restrictions"]["entry_symbols"]["proposed_blocked_long_symbols"], [])
+            self.assertEqual(result["restrictions"]["entry_symbols"]["proposed_blocked_short_symbols"], [])
             self.assertEqual(result["restrictions"]["entry_symbols"]["evidence_source"], "signal-feedback")
             self.assertEqual(result["research"]["optimizer"]["evaluated_candidates"], 24)
             self.assertEqual(result["research"]["walk_forward"]["summary"]["folds_evaluated"], 4)

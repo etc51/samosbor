@@ -118,6 +118,12 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-symbols --days 45 --min-trades-per-symbol 4
 ```
 
+Тот же autotune теперь умеет отдельно блокировать только слабый `long` или только слабый `short` по инструменту:
+
+```powershell
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-symbols --days 45 --min-trades-per-direction-symbol 4
+```
+
 Если нужно сразу наполнить shadow feedback из недавней истории, а не ждать новые сделки:
 
 ```powershell
@@ -172,9 +178,11 @@ SSL_TBANK_VERIFY=True
 - paper-cycle теперь ведёт отдельный shadow signal journal рядом со state-файлом и постепенно размечает сигналы как `take-profit`, `stop-loss` или `expired`
 - `tune-entry-quality` сначала пытается учиться на resolved signal feedback, а если его ещё нет, честно откатывается к обычным closed trades
 - `bootstrap-entry-feedback` позволяет безопасно прогреть этот journal на исторических свечах без отправки ордеров и без вмешательства в paper-позиции
+- `tune-entry-symbols` теперь умеет не только полностью блокировать слабый тикер, но и отдельно добавлять `blocked_long_symbols` / `blocked_short_symbols`, если слабым оказался только один direction
 - `refresh-effective-config` собирает следующую runtime-конфигурацию из последних entry/exit/strategy/schedule autotune результатов, не переписывая базовый серверный TOML
 - новые strategy/exit/entry candidate changes теперь не применяются по одному сигналу: effective-config ждет как минимум `2` подряд подтверждающих daily-review артефакта, прежде чем включить их в active paper runtime
 - тот же `refresh-effective-config` теперь пишет `rollback_guardrail` и при активных autotune-overrides может автоматически вернуться к базовому runtime-профилю, если недавнее paper-окно стало отрицательным или сработал drawdown halt
+- nightly-autonomy теперь сначала делает `bootstrap-entry-feedback`, а уже потом считает entry-hours / entry-symbols / entry-quality, чтобы ночной цикл учился на максимально полном signal-feedback в ту же ночь
 
 ## Research На Данных С D:
 

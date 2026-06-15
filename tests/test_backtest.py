@@ -90,7 +90,7 @@ class BacktestSmokeTest(unittest.TestCase):
             def entry_block_reason_at(self, timestamp):
                 return None
 
-            def entry_block_reason_for_instrument(self, instrument, timestamp):
+            def entry_block_reason_for_instrument(self, instrument, timestamp, direction=None):
                 return None
 
         engine = BacktestEngine(

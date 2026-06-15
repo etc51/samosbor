@@ -100,6 +100,7 @@ class BacktestEngine:
                             entry_block_reason = self.strategy.entry_block_reason_for_instrument(
                                 instruments_by_symbol[symbol],
                                 timestamp,
+                                signal.direction,
                             )
                             if entry_block_reason is not None:
                                 events.append(

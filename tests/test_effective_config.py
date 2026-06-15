@@ -597,10 +597,16 @@ class EffectiveConfigTest(unittest.TestCase):
                     autotune_dir / "entry-symbols" / stamp / "symbol_restrictions.json",
                     {
                         "changed": True,
-                        "reason": "blocked symbols updated from paper results",
+                        "reason": "entry symbol restrictions updated from paper results",
                         "current_blocked_symbols": [],
                         "proposed_blocked_symbols": ["IMOEXF"],
                         "additions": ["IMOEXF"],
+                        "current_blocked_long_symbols": [],
+                        "proposed_blocked_long_symbols": ["SBER"],
+                        "long_additions": ["SBER"],
+                        "current_blocked_short_symbols": [],
+                        "proposed_blocked_short_symbols": ["GAZP"],
+                        "short_additions": ["GAZP"],
                     },
                 )
 
@@ -612,8 +618,17 @@ class EffectiveConfigTest(unittest.TestCase):
             loaded = load_config(output_config)
 
             self.assertEqual(loaded.strategy.blocked_symbols, ["IMOEXF"])
+            self.assertEqual(loaded.strategy.blocked_long_symbols, ["SBER"])
+            self.assertEqual(loaded.strategy.blocked_short_symbols, ["GAZP"])
             self.assertEqual(sources[4]["source"], "entry-symbols")
-            self.assertEqual(sources[4]["selected_values"]["blocked_symbols"], ["IMOEXF"])
+            self.assertEqual(
+                sources[4]["selected_values"],
+                {
+                    "blocked_symbols": ["IMOEXF"],
+                    "blocked_long_symbols": ["SBER"],
+                    "blocked_short_symbols": ["GAZP"],
+                },
+            )
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, object]) -> None:

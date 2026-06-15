@@ -41,6 +41,12 @@ class TrendFollowingStrategy:
             raise ValueError(f"Unsupported strategy style: {config.style}")
         self.schedule_timezone = ZoneInfo(config.schedule_timezone)
         self.blocked_symbols = {symbol.strip().upper() for symbol in config.blocked_symbols if symbol.strip()}
+        self.blocked_long_symbols = {
+            symbol.strip().upper() for symbol in config.blocked_long_symbols if symbol.strip()
+        }
+        self.blocked_short_symbols = {
+            symbol.strip().upper() for symbol in config.blocked_short_symbols if symbol.strip()
+        }
 
     def prepare_history(self, instrument: Instrument, candles: list[Candle]) -> None:
         if self.style != "ema_adx_macd" or not candles:
@@ -83,9 +89,15 @@ class TrendFollowingStrategy:
         self,
         instrument: Instrument,
         timestamp: datetime,
+        direction: SignalDirection | None = None,
     ) -> str | None:
-        if instrument.symbol.strip().upper() in self.blocked_symbols:
+        symbol = instrument.symbol.strip().upper()
+        if symbol in self.blocked_symbols:
             return f"entry blocked by symbol restriction ({instrument.symbol})"
+        if direction == SignalDirection.LONG and symbol in self.blocked_long_symbols:
+            return f"entry blocked by long restriction ({instrument.symbol})"
+        if direction == SignalDirection.SHORT and symbol in self.blocked_short_symbols:
+            return f"entry blocked by short restriction ({instrument.symbol})"
         return self.entry_block_reason_at(timestamp)
 
     def _required_bars(self) -> int:

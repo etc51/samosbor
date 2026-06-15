@@ -120,6 +120,36 @@ def build_parser() -> argparse.ArgumentParser:
         default=4,
         help="Maximum total blocked symbols after applying the recommendation",
     )
+    tune_entry_symbols_parser.add_argument(
+        "--min-trades-per-direction-symbol",
+        type=int,
+        default=4,
+        help="Minimum paper trades per symbol+direction before blocking only long or only short",
+    )
+    tune_entry_symbols_parser.add_argument(
+        "--max-long-symbols-to-block",
+        type=int,
+        default=1,
+        help="Maximum number of long-direction symbol blocks to add in one recommendation pass",
+    )
+    tune_entry_symbols_parser.add_argument(
+        "--max-short-symbols-to-block",
+        type=int,
+        default=1,
+        help="Maximum number of short-direction symbol blocks to add in one recommendation pass",
+    )
+    tune_entry_symbols_parser.add_argument(
+        "--max-total-blocked-long-symbols",
+        type=int,
+        default=4,
+        help="Maximum total blocked_long_symbols after applying the recommendation",
+    )
+    tune_entry_symbols_parser.add_argument(
+        "--max-total-blocked-short-symbols",
+        type=int,
+        default=4,
+        help="Maximum total blocked_short_symbols after applying the recommendation",
+    )
     tune_entry_quality_parser = subparsers.add_parser(
         "tune-entry-quality",
         help="Recommend a safer min_signal_strength from recent paper-trading results",
@@ -305,8 +335,13 @@ def main(argv: list[str] | None = None) -> int:
                     report_date=args.date,
                     timezone_name=args.timezone,
                     min_trades_per_symbol=args.min_trades_per_symbol,
+                    min_trades_per_direction_symbol=args.min_trades_per_direction_symbol,
                     max_symbols_to_block=args.max_symbols_to_block,
                     max_total_blocked_symbols=args.max_total_blocked_symbols,
+                    max_long_symbols_to_block=args.max_long_symbols_to_block,
+                    max_short_symbols_to_block=args.max_short_symbols_to_block,
+                    max_total_blocked_long_symbols=args.max_total_blocked_long_symbols,
+                    max_total_blocked_short_symbols=args.max_total_blocked_short_symbols,
                 ),
                 ensure_ascii=False,
                 indent=2,

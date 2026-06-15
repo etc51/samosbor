@@ -20,6 +20,8 @@ _STRATEGY_OVERRIDE_ORDER = [
     "adx_min",
     "allowed_entry_hours",
     "blocked_symbols",
+    "blocked_long_symbols",
+    "blocked_short_symbols",
 ]
 _REQUIRED_CONFIRMATIONS = 2
 
@@ -45,6 +47,8 @@ def base_strategy_values(config: AppConfig) -> dict[str, object]:
         "adx_min": config.strategy.adx_min,
         "allowed_entry_hours": list(config.strategy.allowed_entry_hours),
         "blocked_symbols": list(config.strategy.blocked_symbols),
+        "blocked_long_symbols": list(config.strategy.blocked_long_symbols),
+        "blocked_short_symbols": list(config.strategy.blocked_short_symbols),
     }
 
 
@@ -363,7 +367,13 @@ def _entry_symbols_current_values(payload: dict[str, object]) -> dict[str, objec
     return {
         "blocked_symbols": [
             str(value).strip().upper() for value in payload.get("current_blocked_symbols", [])
-        ]
+        ],
+        "blocked_long_symbols": [
+            str(value).strip().upper() for value in payload.get("current_blocked_long_symbols", [])
+        ],
+        "blocked_short_symbols": [
+            str(value).strip().upper() for value in payload.get("current_blocked_short_symbols", [])
+        ],
     }
 
 
@@ -371,7 +381,13 @@ def _entry_symbols_candidate_values(payload: dict[str, object]) -> dict[str, obj
     return {
         "blocked_symbols": [
             str(value).strip().upper() for value in payload.get("proposed_blocked_symbols", [])
-        ]
+        ],
+        "blocked_long_symbols": [
+            str(value).strip().upper() for value in payload.get("proposed_blocked_long_symbols", [])
+        ],
+        "blocked_short_symbols": [
+            str(value).strip().upper() for value in payload.get("proposed_blocked_short_symbols", [])
+        ],
     }
 
 
