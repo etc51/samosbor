@@ -60,6 +60,7 @@ class EntryQualityTuningTest(unittest.TestCase):
 
         payload = build_entry_quality_tuning_payload(
             trades=trades,
+            evidence_source="signal-feedback",
             current_min_signal_strength=0.0,
             backtest=BacktestSection(initial_cash=1_000_000),
             research=ResearchSection(target_monthly_profit_rub=7_500.0),
@@ -71,6 +72,7 @@ class EntryQualityTuningTest(unittest.TestCase):
         )
 
         self.assertTrue(payload["changed"])
+        self.assertEqual(payload["evidence_source"], "signal-feedback")
         self.assertGreaterEqual(payload["recommended_min_signal_strength"], 0.7)
         self.assertEqual(payload["reason"], "signal-strength threshold improved recent paper expectancy")
 
@@ -82,6 +84,7 @@ class EntryQualityTuningTest(unittest.TestCase):
 
         payload = build_entry_quality_tuning_payload(
             trades=trades,
+            evidence_source="closed-trades",
             current_min_signal_strength=0.0,
             backtest=BacktestSection(initial_cash=1_000_000),
             research=ResearchSection(target_monthly_profit_rub=7_500.0),
@@ -90,6 +93,7 @@ class EntryQualityTuningTest(unittest.TestCase):
         )
 
         self.assertFalse(payload["changed"])
+        self.assertEqual(payload["evidence_source"], "closed-trades")
         self.assertEqual(payload["reason"], "insufficient paper trades with signal strength evidence")
 
 

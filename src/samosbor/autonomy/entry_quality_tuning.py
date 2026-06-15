@@ -41,6 +41,7 @@ def build_signal_strength_breakdown(
 def build_entry_quality_tuning_payload(
     *,
     trades: list[TradeRecord],
+    evidence_source: str,
     current_min_signal_strength: float,
     backtest: BacktestSection,
     research: ResearchSection,
@@ -64,6 +65,7 @@ def build_entry_quality_tuning_payload(
                 "monthly_profit_rub": round(target_profit, 2),
                 "monthly_return_pct": round(target_return, 3),
             },
+            "evidence_source": evidence_source,
             "lookback": {
                 "requested_trades": lookback_trades,
                 "eligible_trades": len(evidence_trades),
@@ -153,6 +155,7 @@ def build_entry_quality_tuning_payload(
             "monthly_profit_rub": round(target_profit, 2),
             "monthly_return_pct": round(target_return, 3),
         },
+        "evidence_source": evidence_source,
         "lookback": {
             "requested_trades": lookback_trades,
             "eligible_trades": len(evidence_trades),
@@ -262,6 +265,7 @@ def _render_markdown(payload: dict[str, object]) -> str:
         "# Entry Quality Tuning",
         "",
         f"- Target: {payload['target']['monthly_profit_rub']} RUB/month ({payload['target']['monthly_return_pct']}%)",
+        f"- Evidence source: {payload['evidence_source']}",
         f"- Changed: {payload['changed']}",
         f"- Reason: {payload['reason']}",
         f"- Current min signal strength: {payload['current_min_signal_strength']}",

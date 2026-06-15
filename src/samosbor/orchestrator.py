@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -11,6 +12,15 @@ from .autonomy.entry_schedule import (
 from .autonomy.entry_quality_tuning import (
     build_entry_quality_tuning_payload,
     write_entry_quality_tuning,
+)
+from .autonomy.signal_feedback import (
+    default_signal_horizon_bars,
+    load_signal_feedback,
+    record_shadow_signal,
+    resolve_pending_signals,
+    resolved_feedback_to_trades,
+    save_signal_feedback,
+    signal_feedback_path,
 )
 from .autonomy.exit_tuning import (
     build_exit_reason_breakdown,
@@ -492,8 +502,13 @@ class TradingOrchestrator:
         bucket_step: float = 0.05,
     ) -> dict[str, object]:
         broker = self._load_paper_broker()
+        feedback = load_signal_feedback(signal_feedback_path(self.config.resolve_path(self.config.execution.state_path)))
+        feedback_trades = resolved_feedback_to_trades(feedback)
+        evidence_trades = feedback_trades or broker.trades
+        evidence_source = "signal-feedback" if feedback_trades else "closed-trades"
         payload = build_entry_quality_tuning_payload(
-            trades=broker.trades,
+            trades=evidence_trades,
+            evidence_source=evidence_source,
             current_min_signal_strength=self.config.strategy.min_signal_strength,
             backtest=self.config.backtest,
             research=self.config.research,
@@ -521,14 +536,22 @@ class TradingOrchestrator:
         marks = {symbol: candles[-1].close for symbol, candles in history.items() if candles}
 
         state_path = self.config.resolve_path(self.config.execution.state_path)
+        feedback_path = signal_feedback_path(state_path)
         broker = self._load_paper_broker()
+        signal_feedback = load_signal_feedback(feedback_path)
 
         timestamp = datetime.now(timezone.utc)
         strategy = self._strategy()
+        shadow_strategy = TrendFollowingStrategy(
+            replace(self.config.strategy, min_signal_strength=0.0),
+            timeframe=self.config.data.timeframe,
+        )
         for instrument in instruments:
             strategy.prepare_history(instrument, history.get(instrument.symbol, []))
+            shadow_strategy.prepare_history(instrument, history.get(instrument.symbol, []))
         risk_manager = self._risk_manager()
         cycle_events: list[dict[str, object]] = []
+        resolve_pending_signals(signal_feedback, history)
 
         broker.mark_to_market(marks, timestamp)
         risk_manager.update_drawdown_state(broker.portfolio, marks)
@@ -576,7 +599,19 @@ class TradingOrchestrator:
                         position = None
 
             signal = strategy.generate_signal(instrument, candles)
+            shadow_signal = shadow_strategy.generate_signal(instrument, candles)
             if signal is None:
+                if (
+                    shadow_signal is not None
+                    and position is None
+                    and shadow_strategy.allows_entry_at(latest.timestamp)
+                ):
+                    record_shadow_signal(
+                        signal_feedback,
+                        shadow_signal,
+                        timestamp=latest.timestamp,
+                        horizon_bars=default_signal_horizon_bars(self.config.data.timeframe),
+                    )
                 continue
 
             if position and position.direction != signal.direction:
@@ -589,6 +624,13 @@ class TradingOrchestrator:
                 position = None
 
             if position is None:
+                if shadow_signal is not None and shadow_strategy.allows_entry_at(latest.timestamp):
+                    record_shadow_signal(
+                        signal_feedback,
+                        shadow_signal,
+                        timestamp=latest.timestamp,
+                        horizon_bars=default_signal_horizon_bars(self.config.data.timeframe),
+                    )
                 if not strategy.allows_entry_at(latest.timestamp):
                     cycle_events.append(
                         {
@@ -622,6 +664,7 @@ class TradingOrchestrator:
         broker.mark_to_market(marks, timestamp)
         broker.events.extend(cycle_events)
         broker.save(state_path)
+        save_signal_feedback(feedback_path, signal_feedback)
 
         summary = {
             "timestamp": timestamp.isoformat(),

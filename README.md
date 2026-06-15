@@ -136,6 +136,8 @@ SSL_TBANK_VERIFY=True
 - при стартовом капитале `1 000 000 RUB` это соответствует `0.75%` среднего месячного дохода
 - для exit autotune серверный research-grid теперь перебирает несколько соседних значений `atr_stop_multiple` и `reward_to_risk`, но применяет только candidate patch под guardrails
 - для entry-quality autotune сделки теперь сохраняют `signal_strength`, а отдельный paper-feedback контур предлагает `min_signal_strength` только когда накоплено достаточно закрытых paper-сделок
+- paper-cycle теперь ведёт отдельный shadow signal journal рядом со state-файлом и постепенно размечает сигналы как `take-profit`, `stop-loss` или `expired`
+- `tune-entry-quality` сначала пытается учиться на resolved signal feedback, а если его ещё нет, честно откатывается к обычным closed trades
 
 ## Research На Данных С D:
 

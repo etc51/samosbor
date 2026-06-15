@@ -208,6 +208,7 @@ CLI-сценарии:
 - systemd timer вызывает `paper-cycle` каждый час в торговую сессию
 - отдельный daily-review timer собирает сводку по закрытым сделкам и строит candidate patch по `allowed_entry_hours`
 - тот же runtime теперь сохраняет `signal_strength` в paper state и closed trades, чтобы feedback loop мог работать по фактическим входам
+- paper-cycle также ведёт отдельный shadow signal feedback journal, где кандидатные сигналы получают outcome по последующим свечам даже если реальная позиция не открывалась
 - daily-review также запускает `tune-entry-quality`, который анализирует последние закрытые paper-сделки и предлагает candidate patch по `min_signal_strength`
 - тот же daily-review timer запускает walk-forward-based `tune-strategy`, который предлагает только candidate patch и не меняет боевой TOML сам
 - daily-review также запускает `tune-exits`, который крутит только `atr_stop_multiple` и `reward_to_risk` на том же OOS-окне и тоже пишет лишь candidate patch
