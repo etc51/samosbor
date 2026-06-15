@@ -29,7 +29,7 @@
 - `configs/local_pack_cnyrubf_ta_walk_forward.toml` — walk-forward валидация для `CNYRUBF` TA-кандидата
 - `configs/local_pack_cnyrubf_ta_aggressive.toml` — усиленный риск-профиль для лучшего `CNYRUBF`-кандидата
 - `configs/local_pack_fx_index_ta_aggressive.toml` — более агрессивный TA-портфель `USDRUBF + CNYRUBF + IMOEXF`
-- `configs/server_tbank_cnyrubf_premium.toml` — серверный paper-runtime для `CNYRUBF` через T-Bank API
+- `configs/server_tbank_cnyrubf_premium.toml` — серверный multi-futures paper-runtime через T-Bank API с виртуальным бюджетом `300 000 RUB`
 - `docs/architecture.md` — архитектура и логика работы
 - `requirements-tbank.txt` — установка актуального SDK Т-Банка
 - `tests/` — smoke/unit tests
@@ -135,9 +135,9 @@ SSL_TBANK_VERIFY=True
 
 Логика расписания:
 
-- systemd timer запускает `paper-cycle` каждый час в широкое MOEX futures-окно
-- сами входы в позицию ограничены data-driven часами `09,10,12,15,16,17,18,20,21` по Москве
-- это выбрано по фактическому разбору `CNYRUBF` trade log: часы `11,13,19,22,23` сейчас выглядят как слабые или отрицательные
+- systemd timer запускает `paper-cycle` каждые `5` минут в широкое MOEX futures-окно
+- активный server-runtime сейчас следит сразу за `USDRUBF`, `CNYRUBF`, `IMOEXF`, `SBRF`, `GAZR`, `LKOH`
+- входы по умолчанию открыты на всю основную liquid-сессию `09:00-22:59 MSK`, а nightly-autonomy уже может позже сузить часы по фактической статистике paper-сделок
 
 Автообновление:
 
@@ -151,9 +151,9 @@ SSL_TBANK_VERIFY=True
 
 Активная целевая функция autotune:
 
-- рабочий target теперь привязан к прибыли `5000-10000 RUB/мес`
-- в активных server/default research-конфигах используется midpoint `7500 RUB/мес`
-- при стартовом капитале `1 000 000 RUB` это соответствует `0.75%` среднего месячного дохода
+- рабочий target теперь привязан к прибыли `2000-4000 RUB/мес`
+- в активном server-runtime и nightly-autonomy используется midpoint `3000 RUB/мес`
+- при виртуальном paper-капитале `300 000 RUB` это соответствует целевым `1.0%` среднего месячного дохода
 - для exit autotune серверный research-grid теперь перебирает несколько соседних значений `atr_stop_multiple` и `reward_to_risk`, но применяет только candidate patch под guardrails
 - для entry-quality autotune сделки теперь сохраняют `signal_strength`, а отдельный paper-feedback контур предлагает `min_signal_strength` только когда накоплено достаточно закрытых paper-сделок
 - paper-cycle теперь ведёт отдельный shadow signal journal рядом со state-файлом и постепенно размечает сигналы как `take-profit`, `stop-loss` или `expired`
@@ -204,7 +204,7 @@ SSL_TBANK_VERIFY=True
 
 ## Последний Research-Результат
 
-Ниже в этом разделе часть исторических Monte Carlo и walk-forward цифр относится к старому research-target `5%/мес`. Это архивные результаты прошлых прогонов. Активный autotune-контур проекта теперь ориентируется на `7500 RUB/мес`, а не на `5%`.
+Ниже в этом разделе часть исторических Monte Carlo и walk-forward цифр относится к старому research-target `5%/мес`. Это архивные результаты прошлых прогонов. Активный autotune-контур server-runtime теперь ориентируется на `3000 RUB/мес`, а не на `5%`.
 
 На локальном архиве с `D:` baseline-портфель `GAZPF + IMOEXF + USDRUBF` дал
 отрицательный результат, но оптимизация нашла более устойчивый кандидат:
@@ -256,7 +256,7 @@ Walk-forward для [configs/local_pack_cnyrubf_ta_walk_forward.toml](/D:/projec
   [тарифы инвестора](https://www.tbank.ru/invest/help/brokerage/account/get-bs/tariff/)
   и [маржинальная торговля](https://www.tbank.ru/invest/help/brokerage/account/margin/advantages/)
 
-Итог текущего этапа: исследовательский контур стал быстрее и честнее, потому что теперь включает walk-forward и безопасный autotune candidate flow. Старую цель `5%` в месяц система устойчиво не подтверждала; текущий активный target для runtime и autotune смещён к более реалистичному диапазону `5000-10000 RUB/мес`.
+Итог текущего этапа: исследовательский контур стал быстрее и честнее, потому что теперь включает walk-forward и безопасный autotune candidate flow. Старую цель `5%` в месяц система устойчиво не подтверждала; текущий активный target для runtime и autotune смещён к более реалистичному диапазону `2000-4000 RUB/мес`.
 
 ## Безопасность
 
