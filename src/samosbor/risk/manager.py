@@ -50,6 +50,8 @@ class RiskManager:
         if equity <= 0:
             return RiskDecision(False, "equity depleted")
 
+        remaining_slots = max(1, self.config.max_positions - len(portfolio.positions))
+
         stop_distance = abs(signal.entry_price - signal.stop_price)
         if stop_distance <= 0:
             return RiskDecision(False, "invalid stop distance")
@@ -64,6 +66,9 @@ class RiskManager:
         quantity_lots = self._cap_single_position_exposure(quantity_lots, signal, equity)
         if quantity_lots < 1:
             return RiskDecision(False, "single position exposure cap reached")
+
+        current_exposure = portfolio.gross_exposure(marks)
+        notional_per_lot = signal.entry_price * signal.instrument.lot_size
 
         if (
             signal.instrument.instrument_type == InstrumentType.FUTURE
@@ -104,14 +109,23 @@ class RiskManager:
                 estimated_notional_rub=estimated_notional,
             )
 
-        current_exposure = portfolio.gross_exposure(marks)
-        notional_per_lot = signal.entry_price * signal.instrument.lot_size
         max_exposure_rub = equity * self.config.max_gross_exposure
         max_extra_notional = max(0.0, max_exposure_rub - current_exposure)
         exposure_capped = int(max_extra_notional // notional_per_lot)
         quantity_lots = min(quantity_lots, exposure_capped)
         if quantity_lots < 1:
             return RiskDecision(False, "gross exposure cap reached")
+
+        deployable_stock_budget = max(0.0, equity * (1 - self.config.cash_reserve_ratio) - current_exposure)
+        quantity_lots = self._cap_remaining_slot_budget(
+            quantity_lots,
+            current_allocated_rub=0.0,
+            total_budget_rub=deployable_stock_budget,
+            per_lot_rub=notional_per_lot,
+            remaining_slots=remaining_slots,
+        )
+        if quantity_lots < 1:
+            return RiskDecision(False, "stock slot budget reached")
 
         if signal.direction == SignalDirection.LONG:
             reserved_cash = equity * self.config.cash_reserve_ratio
@@ -153,6 +167,23 @@ class RiskManager:
         max_position_notional = equity * position_cap_ratio
         position_capped = int(max_position_notional // notional_per_lot)
         return min(quantity_lots, position_capped)
+
+    def _cap_remaining_slot_budget(
+        self,
+        quantity_lots: int,
+        *,
+        current_allocated_rub: float,
+        total_budget_rub: float,
+        per_lot_rub: float,
+        remaining_slots: int,
+    ) -> int:
+        if quantity_lots < 1 or per_lot_rub <= 0 or remaining_slots <= 0:
+            return 0
+
+        remaining_budget = max(0.0, total_budget_rub - current_allocated_rub)
+        slot_budget = remaining_budget / remaining_slots
+        slot_capped = int(slot_budget // per_lot_rub)
+        return min(quantity_lots, slot_capped)
 
     def trailing_stop_price(
         self,

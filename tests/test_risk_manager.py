@@ -15,10 +15,10 @@ from samosbor.domain import (
 from samosbor.risk.manager import RiskManager
 
 
-def _stock_signal(symbol: str) -> Signal:
+def _stock_signal(symbol: str, direction: SignalDirection = SignalDirection.LONG) -> Signal:
     return Signal(
         instrument=Instrument(symbol=symbol, instrument_type=InstrumentType.STOCK, lot_size=1),
-        direction=SignalDirection.LONG,
+        direction=direction,
         strength=0.8,
         entry_price=100.0,
         stop_price=99.0,
@@ -28,7 +28,7 @@ def _stock_signal(symbol: str) -> Signal:
 
 
 class RiskManagerDiversificationTest(unittest.TestCase):
-    def test_stock_position_is_capped_by_single_position_exposure_ratio(self):
+    def test_stock_position_is_capped_by_remaining_slot_budget(self):
         manager = RiskManager(
             RiskSection(
                 max_risk_per_trade=0.02,
@@ -43,8 +43,8 @@ class RiskManagerDiversificationTest(unittest.TestCase):
         decision = manager.approve(portfolio, _stock_signal("SBER"), {"SBER": 100.0}, [])
 
         self.assertTrue(decision.approved)
-        self.assertEqual(decision.quantity_lots, 900)
-        self.assertEqual(decision.estimated_notional_rub, 90_000.0)
+        self.assertEqual(decision.quantity_lots, 750)
+        self.assertEqual(decision.estimated_notional_rub, 75_000.0)
 
     def test_position_cap_still_leaves_room_for_other_stocks(self):
         manager = RiskManager(
@@ -81,8 +81,31 @@ class RiskManagerDiversificationTest(unittest.TestCase):
         decision = manager.approve(portfolio, _stock_signal("GAZP"), {"SBER": 100.0, "GAZP": 100.0}, [])
 
         self.assertTrue(decision.approved)
-        self.assertEqual(decision.quantity_lots, 900)
-        self.assertEqual(decision.estimated_notional_rub, 90_000.0)
+        self.assertEqual(decision.quantity_lots, 600)
+        self.assertEqual(decision.estimated_notional_rub, 60_000.0)
+
+    def test_short_stock_position_uses_same_slot_budget(self):
+        manager = RiskManager(
+            RiskSection(
+                max_risk_per_trade=0.02,
+                max_gross_exposure=1.5,
+                cash_reserve_ratio=0.10,
+                max_positions=4,
+                max_position_exposure_ratio=0.30,
+            )
+        )
+        portfolio = PortfolioState(cash=300_000.0, peak_equity=300_000.0)
+
+        decision = manager.approve(
+            portfolio,
+            _stock_signal("TATN", direction=SignalDirection.SHORT),
+            {"TATN": 100.0},
+            [],
+        )
+
+        self.assertTrue(decision.approved)
+        self.assertEqual(decision.quantity_lots, 675)
+        self.assertEqual(decision.estimated_notional_rub, 67_500.0)
 
     def test_futures_position_is_capped_by_single_position_exposure_ratio(self):
         manager = RiskManager(
