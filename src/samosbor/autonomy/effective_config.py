@@ -231,9 +231,9 @@ def _build_source_summary(
         "confirmation_count": 0,
         "confirmed": False,
         "pending_activation": False,
-        "reason": "latest tuning run keeps current runtime values",
+        "reason": "latest tuning run produced no active runtime override",
     }
-    selected_values = current_values
+    selected_values: dict[str, object] = {}
 
     if changed and candidate_values:
         confirmation_count = _candidate_confirmation_count(
@@ -253,7 +253,7 @@ def _build_source_summary(
                 else f"candidate is waiting for {required_confirmations} consecutive confirmations"
             ),
         }
-        selected_values = candidate_values if confirmed else current_values
+        selected_values = candidate_values if confirmed else {}
 
     return {
         "source": source_name,
