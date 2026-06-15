@@ -12,4 +12,13 @@ if ! flock -n 9; then
 fi
 
 source "$ROOT_DIR/.venv/bin/activate"
-python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml paper-cycle
+BASE_CONFIG="configs/server_tbank_cnyrubf_premium.toml"
+EFFECTIVE_CONFIG="configs/server_tbank_cnyrubf_premium.effective.toml"
+SOURCE_CONFIG="$BASE_CONFIG"
+
+if [[ -f "$ROOT_DIR/$EFFECTIVE_CONFIG" ]]; then
+  SOURCE_CONFIG="$EFFECTIVE_CONFIG"
+fi
+
+python -m samosbor.cli --config "$SOURCE_CONFIG" refresh-effective-config --output "$EFFECTIVE_CONFIG"
+python -m samosbor.cli --config "$EFFECTIVE_CONFIG" paper-cycle

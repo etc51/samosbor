@@ -14,6 +14,7 @@ Desktop.ini
 _vendor/
 runs/
 state/
+configs/*.effective.toml
 
 # Logs and temp
 *.log

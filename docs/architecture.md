@@ -182,6 +182,7 @@ CLI-сценарии:
 - `accounts`
 - `backtest`
 - `paper-cycle`
+- `refresh-effective-config`
 - `paper-report`
 - `tune-entry-hours`
 - `tune-entry-quality`
@@ -207,7 +208,9 @@ CLI-сценарии:
 - market data приходят через T-Bank API
 - для futures runtime дополнительно подтягивает `GetFuturesMargin` и использует его в sizing/risk checks
 - systemd timer вызывает `paper-cycle` каждый час в торговую сессию
+- перед каждым cycle server собирает `configs/server_tbank_cnyrubf_premium.effective.toml` из последних autotune-артефактов и торгует уже по этой производной конфигурации
 - отдельный daily-review timer собирает сводку по закрытым сделкам и строит candidate patch по `allowed_entry_hours`
+- отдельная команда `refresh-effective-config` собирает производный runtime TOML из последних autotune-артефактов, не трогая базовый config
 - тот же runtime теперь сохраняет `signal_strength` в paper state и closed trades, чтобы feedback loop мог работать по фактическим входам
 - paper-cycle также ведёт отдельный shadow signal feedback journal, где кандидатные сигналы получают outcome по последующим свечам даже если реальная позиция не открывалась
 - отдельная команда `bootstrap-entry-feedback` может безопасно прогреть этот journal на уже доступной исторической выборке

@@ -26,6 +26,14 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("accounts", help="List T-Bank accounts visible to the configured token")
     subparsers.add_parser("backtest", help="Run a historical backtest")
     subparsers.add_parser("paper-cycle", help="Run one paper-trading cycle")
+    refresh_effective_parser = subparsers.add_parser(
+        "refresh-effective-config",
+        help="Build the derived paper runtime config from the latest autotune artifacts",
+    )
+    refresh_effective_parser.add_argument(
+        "--output",
+        help="Optional path for the generated effective config, defaults next to the input config",
+    )
     paper_report_parser = subparsers.add_parser("paper-report", help="Build a summary from paper-trading state")
     paper_report_parser.add_argument("--days", type=int, default=1, help="Lookback window in days")
     paper_report_parser.add_argument("--date", help="Anchor ISO date in report timezone, defaults to today")
@@ -174,6 +182,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "paper-cycle":
         print(json.dumps(orchestrator.run_paper_cycle(), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "refresh-effective-config":
+        print(
+            json.dumps(
+                orchestrator.refresh_effective_config(
+                    source_config_path=args.config,
+                    output_path=args.output,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
     if args.command == "paper-report":
         print(

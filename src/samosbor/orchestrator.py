@@ -13,6 +13,12 @@ from .autonomy.entry_quality_tuning import (
     build_entry_quality_tuning_payload,
     write_entry_quality_tuning,
 )
+from .autonomy.effective_config import (
+    build_effective_strategy_overrides,
+    default_effective_config_path,
+    summarize_effective_config_sources,
+    write_effective_config,
+)
 from .autonomy.signal_feedback import (
     backfill_signal_feedback_for_symbol,
     default_signal_horizon_bars,
@@ -578,6 +584,41 @@ class TradingOrchestrator:
             "resolved_signals": len(payload.get("resolved", [])),
         }
         write_json_payload(output_dir / "bootstrap_summary.json", result)
+        result["output_dir"] = str(output_dir)
+        return result
+
+    def refresh_effective_config(
+        self,
+        *,
+        source_config_path: str | Path,
+        output_path: str | Path | None = None,
+    ) -> dict[str, object]:
+        assert_paper_only_mode(
+            self.config.execution.mode,
+            allow_live_trading=self.config.execution.allow_live_trading,
+            live_flag=False,
+        )
+        source_path = Path(source_config_path).resolve()
+        target_path = Path(output_path).resolve() if output_path else default_effective_config_path(source_path)
+        autotune_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune"
+        sources = summarize_effective_config_sources(autotune_dir)
+        overrides = build_effective_strategy_overrides(self.config)
+        write_effective_config(
+            source_path,
+            target_path,
+            strategy_overrides=overrides,
+        )
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "effective-config" / stamp
+        result = {
+            "source_config_path": str(source_path),
+            "effective_config_path": str(target_path),
+            "paper_only_mode": self.config.execution.mode.value,
+            "allow_live_trading": self.config.execution.allow_live_trading,
+            "applied_strategy_overrides": overrides,
+            "sources": sources,
+        }
+        write_json_payload(output_dir / "effective_config.json", result)
         result["output_dir"] = str(output_dir)
         return result
 

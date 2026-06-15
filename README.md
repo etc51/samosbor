@@ -113,6 +113,12 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml bootstrap-entry-feedback
 ```
 
+Чтобы собрать производный runtime-конфиг из последних autotune-артефактов:
+
+```powershell
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml refresh-effective-config
+```
+
 ## Server Runtime
 
 Для 24/7 серверного paper-режима подготовлены:
@@ -134,6 +140,7 @@ SSL_TBANK_VERIFY=True
 - для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
 - `samosbor-daily-review.timer` после торговой сессии строит daily report, candidate patch по `allowed_entry_hours`, candidate patch по параметрам стратегии, отдельный candidate patch по exit settings и candidate patch по `min_signal_strength`
 - daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/entry-quality`, `runs/autotune/strategy` и `runs/autotune/exits`
+- `paper-cycle` теперь работает через производный `configs/server_tbank_cnyrubf_premium.effective.toml`, который пересобирается из последних autotune-артефактов и сохраняет `local-paper` / `allow_live_trading = false`
 
 Активная целевая функция autotune:
 
@@ -145,6 +152,7 @@ SSL_TBANK_VERIFY=True
 - paper-cycle теперь ведёт отдельный shadow signal journal рядом со state-файлом и постепенно размечает сигналы как `take-profit`, `stop-loss` или `expired`
 - `tune-entry-quality` сначала пытается учиться на resolved signal feedback, а если его ещё нет, честно откатывается к обычным closed trades
 - `bootstrap-entry-feedback` позволяет безопасно прогреть этот journal на исторических свечах без отправки ордеров и без вмешательства в paper-позиции
+- `refresh-effective-config` собирает следующую runtime-конфигурацию из последних entry/exit/strategy/schedule autotune результатов, не переписывая базовый серверный TOML
 
 ## Research На Данных С D:
 
