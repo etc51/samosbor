@@ -8,6 +8,12 @@ from .autonomy.entry_schedule import (
     build_entry_schedule_tuning_payload,
     write_entry_schedule_tuning,
 )
+from .autonomy.exit_tuning import (
+    build_exit_reason_breakdown,
+    build_exit_tuning_payload,
+    specialize_exit_tuning_research,
+    write_exit_tuning,
+)
 from .autonomy.strategy_tuning import (
     adapt_strategy_tuning_research,
     build_strategy_tuning_payload,
@@ -317,6 +323,110 @@ class TradingOrchestrator:
         payload["output_dir"] = str(output_dir)
         return payload
 
+    def tune_exits(
+        self,
+        *,
+        min_monthly_improvement_pct: float = 0.03,
+        max_extra_drawdown_pct: float = 1.0,
+        min_positive_fold_probability_pct: float = 55.0,
+    ) -> dict[str, object]:
+        assert_paper_only_mode(
+            self.config.execution.mode,
+            allow_live_trading=self.config.execution.allow_live_trading,
+            live_flag=False,
+        )
+        _, instruments, candles_by_symbol, instruments_by_symbol = self._load_market_bundle()
+        grouped = _group_candles_by_month(candles_by_symbol)
+        available_months = _available_months(grouped)
+        tuned_research, research_window = adapt_strategy_tuning_research(
+            self.config.research,
+            available_months=len(available_months),
+            fixed_subset_size=len(instruments),
+        )
+        if tuned_research is None:
+            payload = {
+                "target": {
+                    "monthly_profit_rub": round(
+                        effective_target_monthly_profit_rub(self.config.research, self.config.backtest),
+                        2,
+                    ),
+                    "monthly_return_pct": round(
+                        effective_target_monthly_return_pct(self.config.research, self.config.backtest),
+                        3,
+                    ),
+                },
+                "research_window": research_window,
+                "changed": False,
+                "reason": research_window["reason"],
+            }
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+            output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "exits" / stamp
+            write_json_payload(output_dir / "exit_tuning.json", payload)
+            payload["output_dir"] = str(output_dir)
+            return payload
+
+        exit_research = specialize_exit_tuning_research(tuned_research, self.config.strategy)
+        validator = WalkForwardValidator(
+            base_strategy=self.config.strategy,
+            risk=self.config.risk,
+            backtest=self.config.backtest,
+            research=exit_research,
+            timeframe=self.config.data.timeframe,
+            slippage_bps=self.config.execution.slippage_bps,
+            commission_bps=self.config.execution.commission_bps,
+        )
+        walk_forward = validator.run(candles_by_symbol, instruments_by_symbol)
+        latest_fold = walk_forward["folds"][-1]
+
+        optimizer = ParameterOptimizer(
+            base_strategy=self.config.strategy,
+            risk=self.config.risk,
+            backtest=self.config.backtest,
+            research=exit_research,
+            timeframe=self.config.data.timeframe,
+            slippage_bps=self.config.execution.slippage_bps,
+            commission_bps=self.config.execution.commission_bps,
+        )
+        candidate_strategy = optimizer.strategy_from_candidate_payload(latest_fold["best_candidate"])
+        baseline_result, baseline_summary = self._evaluate_strategy_test_window_bundle(
+            strategy_config=self.config.strategy,
+            grouped=grouped,
+            instruments_by_symbol=instruments_by_symbol,
+            symbols=latest_fold["best_candidate"]["symbols"],
+            train_months=latest_fold["train_months"],
+            test_months=latest_fold["test_months"],
+        )
+        candidate_result, candidate_summary = self._evaluate_strategy_test_window_bundle(
+            strategy_config=candidate_strategy,
+            grouped=grouped,
+            instruments_by_symbol=instruments_by_symbol,
+            symbols=latest_fold["best_candidate"]["symbols"],
+            train_months=latest_fold["train_months"],
+            test_months=latest_fold["test_months"],
+        )
+        payload = build_exit_tuning_payload(
+            current_strategy=self.config.strategy,
+            candidate_strategy=candidate_strategy,
+            baseline_latest_test_summary=baseline_summary,
+            candidate_latest_test_summary=candidate_summary,
+            baseline_exit_breakdown=build_exit_reason_breakdown(baseline_result.trades),
+            candidate_exit_breakdown=build_exit_reason_breakdown(candidate_result.trades),
+            walk_forward_summary=walk_forward["summary"],
+            walk_forward_config=walk_forward["config"],
+            backtest=self.config.backtest,
+            research=exit_research,
+            research_window=research_window,
+            min_monthly_improvement_pct=min_monthly_improvement_pct,
+            max_extra_drawdown_pct=max_extra_drawdown_pct,
+            min_positive_fold_probability_pct=min_positive_fold_probability_pct,
+        )
+        payload["latest_fold"] = latest_fold
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "exits" / stamp
+        write_exit_tuning(output_dir, payload)
+        payload["output_dir"] = str(output_dir)
+        return payload
+
     def run_paper_report(
         self,
         *,
@@ -507,6 +617,26 @@ class TradingOrchestrator:
         train_months: list[str],
         test_months: list[str],
     ) -> dict[str, float | int]:
+        _, summary = self._evaluate_strategy_test_window_bundle(
+            strategy_config=strategy_config,
+            grouped=grouped,
+            instruments_by_symbol=instruments_by_symbol,
+            symbols=symbols,
+            train_months=train_months,
+            test_months=test_months,
+        )
+        return summary
+
+    def _evaluate_strategy_test_window_bundle(
+        self,
+        *,
+        strategy_config: StrategySection,
+        grouped: dict[str, dict[str, list]],
+        instruments_by_symbol: dict[str, object],
+        symbols: list[str],
+        train_months: list[str],
+        test_months: list[str],
+    ) -> tuple[object, dict[str, float | int]]:
         selected_symbols = [symbol for symbol in symbols if symbol in instruments_by_symbol]
         combined_months = tuple([*train_months, *test_months])
         combined_bundle = _slice_grouped_candles(grouped, combined_months)
@@ -541,4 +671,4 @@ class TradingOrchestrator:
             ),
             3,
         )
-        return summary
+        return test_result, summary

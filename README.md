@@ -95,6 +95,12 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-strategy
 ```
 
+Постройте отдельную рекомендацию по качеству выходов:
+
+```powershell
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-exits
+```
+
 ## Server Runtime
 
 Для 24/7 серверного paper-режима подготовлены:
@@ -114,14 +120,15 @@ SSL_TBANK_VERIFY=True
 - `samosbor-updater.timer` проверяет GitHub каждые `15` минут
 - при новом коммите делает `git pull --ff-only`, обновляет окружение и прогоняет unit tests
 - для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
-- `samosbor-daily-review.timer` после торговой сессии строит daily report, candidate patch по `allowed_entry_hours` и отдельный candidate patch по параметрам стратегии
-- daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule` и `runs/autotune/strategy`
+- `samosbor-daily-review.timer` после торговой сессии строит daily report, candidate patch по `allowed_entry_hours`, candidate patch по параметрам стратегии и отдельный candidate patch по exit settings
+- daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/strategy` и `runs/autotune/exits`
 
 Активная целевая функция autotune:
 
 - рабочий target теперь привязан к прибыли `5000-10000 RUB/мес`
 - в активных server/default research-конфигах используется midpoint `7500 RUB/мес`
 - при стартовом капитале `1 000 000 RUB` это соответствует `0.75%` среднего месячного дохода
+- для exit autotune серверный research-grid теперь перебирает несколько соседних значений `atr_stop_multiple` и `reward_to_risk`, но применяет только candidate patch под guardrails
 
 ## Research На Данных С D:
 

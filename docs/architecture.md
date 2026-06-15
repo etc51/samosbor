@@ -185,6 +185,7 @@ CLI-сценарии:
 - `paper-report`
 - `tune-entry-hours`
 - `tune-strategy`
+- `tune-exits`
 - `walk-forward`
 - `sandbox-init`
 - `optimize`
@@ -206,6 +207,7 @@ CLI-сценарии:
 - systemd timer вызывает `paper-cycle` каждый час в торговую сессию
 - отдельный daily-review timer собирает сводку по закрытым сделкам и строит candidate patch по `allowed_entry_hours`
 - тот же daily-review timer запускает walk-forward-based `tune-strategy`, который предлагает только candidate patch и не меняет боевой TOML сам
+- daily-review также запускает `tune-exits`, который крутит только `atr_stop_multiple` и `reward_to_risk` на том же OOS-окне и тоже пишет лишь candidate patch
 - entry schedule дополнительно фильтруется на уровне стратегии через `allowed_entry_hours` по `Europe/Moscow`
 
 ## Дальнейшее развитие

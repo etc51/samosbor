@@ -80,6 +80,28 @@ def build_parser() -> argparse.ArgumentParser:
         default=55.0,
         help="Minimum walk-forward positive-fold probability required before suggesting a patch",
     )
+    tune_exits_parser = subparsers.add_parser(
+        "tune-exits",
+        help="Recommend safer exit parameters from recent walk-forward results",
+    )
+    tune_exits_parser.add_argument(
+        "--min-monthly-improvement-pct",
+        type=float,
+        default=0.03,
+        help="Minimum latest OOS monthly improvement required before suggesting an exit patch",
+    )
+    tune_exits_parser.add_argument(
+        "--max-extra-drawdown-pct",
+        type=float,
+        default=1.0,
+        help="Maximum tolerated increase in latest OOS drawdown versus current exits",
+    )
+    tune_exits_parser.add_argument(
+        "--min-positive-fold-probability-pct",
+        type=float,
+        default=55.0,
+        help="Minimum walk-forward positive-fold probability required before suggesting exit changes",
+    )
 
     sandbox_parser = subparsers.add_parser("sandbox-init", help="Create/fund a sandbox account")
     sandbox_parser.add_argument("--fund-rub", type=float, default=1_000_000)
@@ -146,6 +168,19 @@ def main(argv: list[str] | None = None) -> int:
         print(
             json.dumps(
                 orchestrator.tune_strategy(
+                    min_monthly_improvement_pct=args.min_monthly_improvement_pct,
+                    max_extra_drawdown_pct=args.max_extra_drawdown_pct,
+                    min_positive_fold_probability_pct=args.min_positive_fold_probability_pct,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "tune-exits":
+        print(
+            json.dumps(
+                orchestrator.tune_exits(
                     min_monthly_improvement_pct=args.min_monthly_improvement_pct,
                     max_extra_drawdown_pct=args.max_extra_drawdown_pct,
                     min_positive_fold_probability_pct=args.min_positive_fold_probability_pct,
