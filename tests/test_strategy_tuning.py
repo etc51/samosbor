@@ -8,6 +8,7 @@ from samosbor.autonomy.strategy_tuning import (
 )
 from samosbor.config import BacktestSection, ResearchSection, StrategySection
 from samosbor.research.targets import (
+    effective_target_daily_profit_rub,
     effective_target_monthly_profit_rub,
     effective_target_monthly_return_pct,
 )
@@ -20,6 +21,19 @@ class ResearchTargetTest(unittest.TestCase):
 
         self.assertEqual(effective_target_monthly_profit_rub(research, backtest), 7_500.0)
         self.assertEqual(effective_target_monthly_return_pct(research, backtest), 0.75)
+
+    def test_effective_target_prefers_daily_goal_when_present(self):
+        backtest = BacktestSection(initial_cash=300_000)
+        research = ResearchSection(
+            trading_days_per_month=20,
+            target_daily_profit_rub=3_000.0,
+            target_monthly_return_pct=1.0,
+            target_monthly_profit_rub=3_000.0,
+        )
+
+        self.assertEqual(effective_target_daily_profit_rub(research, backtest), 3_000.0)
+        self.assertEqual(effective_target_monthly_profit_rub(research, backtest), 60_000.0)
+        self.assertEqual(effective_target_monthly_return_pct(research, backtest), 20.0)
 
 
 class StrategyTuningTest(unittest.TestCase):
@@ -96,6 +110,7 @@ class StrategyTuningTest(unittest.TestCase):
         )
 
         self.assertTrue(payload["changed"])
+        self.assertEqual(payload["target"]["daily_profit_rub"], 375.0)
         self.assertEqual(payload["patch_values"]["require_breakout"], True)
         self.assertEqual(payload["patch_values"]["adx_min"], 15.0)
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..config import BacktestSection, ResearchSection, StrategySection
 from ..domain import TradeRecord
-from ..research.targets import effective_target_monthly_profit_rub, effective_target_monthly_return_pct
+from ..research.targets import effective_target_payload, render_target_label
 
 
 def specialize_exit_tuning_research(
@@ -64,8 +64,7 @@ def build_exit_tuning_payload(
     max_extra_drawdown_pct: float = 1.0,
     min_positive_fold_probability_pct: float = 55.0,
 ) -> dict[str, object]:
-    effective_target_profit = effective_target_monthly_profit_rub(research, backtest)
-    effective_target_return = effective_target_monthly_return_pct(research, backtest)
+    target = effective_target_payload(research, backtest)
     current_view = _exit_view(current_strategy)
     candidate_view = _exit_view(candidate_strategy)
     patch_values = {
@@ -122,10 +121,7 @@ def build_exit_tuning_payload(
         reason = "candidate exit settings improved the latest OOS window without breaking guardrails"
 
     return {
-        "target": {
-            "monthly_profit_rub": round(effective_target_profit, 2),
-            "monthly_return_pct": round(effective_target_return, 3),
-        },
+        "target": target,
         "research_window": research_window,
         "walk_forward": {
             "config": walk_forward_config,
@@ -210,7 +206,7 @@ def _render_markdown(payload: dict[str, object]) -> str:
     lines = [
         "# Exit Tuning",
         "",
-        f"- Target: {payload['target']['monthly_profit_rub']} RUB/month ({payload['target']['monthly_return_pct']}%)",
+        f"- Target: {render_target_label(payload['target'])}",
         f"- Changed: {payload['changed']}",
         f"- Reason: {payload['reason']}",
         f"- Current exits: {payload['current_exit_settings']}",

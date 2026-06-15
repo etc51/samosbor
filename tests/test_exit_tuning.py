@@ -110,6 +110,7 @@ class ExitTuningPayloadTest(unittest.TestCase):
         )
 
         self.assertTrue(payload["changed"])
+        self.assertEqual(payload["target"]["daily_profit_rub"], 375.0)
         self.assertEqual(payload["patch_values"]["atr_stop_multiple"], 1.75)
         self.assertEqual(payload["patch_values"]["reward_to_risk"], 1.5)
 

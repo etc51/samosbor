@@ -73,6 +73,7 @@ class EntryQualityTuningTest(unittest.TestCase):
 
         self.assertTrue(payload["changed"])
         self.assertEqual(payload["evidence_source"], "signal-feedback")
+        self.assertEqual(payload["target"]["daily_profit_rub"], 375.0)
         self.assertGreaterEqual(payload["recommended_min_signal_strength"], 0.7)
         self.assertEqual(payload["reason"], "signal-strength threshold improved recent paper expectancy")
 

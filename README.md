@@ -24,7 +24,7 @@
 - `configs/paper.toml` — пример конфигурации
 - `configs/local_pack_research.toml` — research-конфиг для локального архива свечей на `D:`
 - `configs/local_pack_ta_research.toml` — сфокусированный TA-search по сильным MOEX futures
-- `configs/local_pack_server_multi_300k.toml` — общий research-профиль под server-runtime, budget `300 000 RUB` и target `3000 RUB/мес`
+- `configs/local_pack_server_multi_300k.toml` — общий research-профиль под server-runtime, budget `300 000 RUB` и target midpoint `3000 RUB/день`
 - `configs/local_pack_server_pair_cny_usd_candidate.toml` — evidence-backed candidate для пары `CNYRUBF + USDRUBF`
 - `configs/local_pack_usdrubf_candidate.toml` — конфиг лучшего кандидата из локальной оптимизации
 - `configs/local_pack_cnyrubf_ta_candidate.toml` — TA-кандидат на `CNYRUBF`
@@ -153,9 +153,9 @@ SSL_TBANK_VERIFY=True
 
 Активная целевая функция autotune:
 
-- рабочий target теперь привязан к прибыли `2000-4000 RUB/мес`
-- в активном server-runtime и nightly-autonomy используется midpoint `3000 RUB/мес`
-- при виртуальном paper-капитале `300 000 RUB` это соответствует целевым `1.0%` среднего месячного дохода
+- рабочий target теперь привязан к прибыли `2000-4000 RUB/день`
+- в активном server-runtime и nightly-autonomy используется midpoint `3000 RUB/день`
+- при виртуальном paper-капитале `300 000 RUB` это соответствует эквиваленту `60 000 RUB/мес` при `20` торговых днях, то есть целевым `20.0%` среднего месячного дохода
 - последний focused research для server-runtime показал, что pair `CNYRUBF + USDRUBF` на текущем TA-профиле выглядит сильнее широкого multi-futures baseline
 - для exit autotune серверный research-grid теперь перебирает несколько соседних значений `atr_stop_multiple` и `reward_to_risk`, но применяет только candidate patch под guardrails
 - для entry-quality autotune сделки теперь сохраняют `signal_strength`, а отдельный paper-feedback контур предлагает `min_signal_strength` только когда накоплено достаточно закрытых paper-сделок
@@ -207,7 +207,7 @@ SSL_TBANK_VERIFY=True
 
 ## Последний Research-Результат
 
-Ниже в этом разделе часть исторических Monte Carlo и walk-forward цифр относится к старому research-target `5%/мес`. Это архивные результаты прошлых прогонов. Активный autotune-контур server-runtime теперь ориентируется на `3000 RUB/мес`, а не на `5%`.
+Ниже в этом разделе часть исторических Monte Carlo и walk-forward цифр относится к старому research-target `5%/мес`. Это архивные результаты прошлых прогонов. Активный autotune-контур server-runtime теперь ориентируется на `3000 RUB/день` (эквивалент `60 000 RUB/мес` при `20` торговых днях), а не на `5%`.
 
 На локальном архиве с `D:` baseline-портфель `GAZPF + IMOEXF + USDRUBF` дал
 отрицательный результат, но оптимизация нашла более устойчивый кандидат:
@@ -259,7 +259,7 @@ Walk-forward для [configs/local_pack_cnyrubf_ta_walk_forward.toml](/D:/projec
   [тарифы инвестора](https://www.tbank.ru/invest/help/brokerage/account/get-bs/tariff/)
   и [маржинальная торговля](https://www.tbank.ru/invest/help/brokerage/account/margin/advantages/)
 
-Итог текущего этапа: исследовательский контур стал быстрее и честнее, потому что теперь включает walk-forward и безопасный autotune candidate flow. Старую цель `5%` в месяц система устойчиво не подтверждала; текущий активный target для runtime и autotune смещён к более реалистичному диапазону `2000-4000 RUB/мес`.
+Итог текущего этапа: исследовательский контур стал быстрее и честнее, потому что теперь включает walk-forward и безопасный autotune candidate flow. Старую цель `5%` в месяц система устойчиво не подтверждала; текущий активный target для runtime и autotune смещён к диапазону `2000-4000 RUB/день`, а все research-артефакты теперь считают его месячный эквивалент автоматически.
 
 ## Безопасность
 

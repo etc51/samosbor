@@ -10,7 +10,11 @@ from ..reporting.metrics import compute_summary
 from ..risk.manager import RiskManager
 from ..strategy.trend_following import TrendFollowingStrategy
 from .optimizer import ParameterOptimizer
-from .targets import effective_target_monthly_profit_rub, effective_target_monthly_return_pct
+from .targets import (
+    effective_target_monthly_profit_rub,
+    effective_target_monthly_return_pct,
+    effective_target_payload,
+)
 
 
 @dataclass(frozen=True)
@@ -52,6 +56,7 @@ class WalkForwardValidator:
         self.timeframe = timeframe
         self.slippage_bps = slippage_bps
         self.commission_bps = commission_bps
+        self.target = effective_target_payload(research, backtest)
         self.target_monthly_return_pct = effective_target_monthly_return_pct(research, backtest)
         self.target_monthly_profit_rub = effective_target_monthly_profit_rub(research, backtest)
 
@@ -184,8 +189,10 @@ class WalkForwardValidator:
                 "train_months": train_months,
                 "test_months": test_months,
                 "step_months": step_months,
+                "target_daily_profit_rub": self.target["daily_profit_rub"],
                 "target_monthly_return_pct": self.target_monthly_return_pct,
                 "target_monthly_profit_rub": self.target_monthly_profit_rub,
+                "trading_days_per_month": self.target["trading_days_per_month"],
             },
             "summary": _walk_forward_summary(
                 folds,

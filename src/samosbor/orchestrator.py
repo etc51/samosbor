@@ -60,7 +60,10 @@ from .reporting.research_writer import (
 from .reporting.writer import write_backtest_report, write_json_payload, write_portfolio_snapshot
 from .research.monte_carlo import MonteCarloSimulator
 from .research.optimizer import ParameterOptimizer
-from .research.targets import effective_target_monthly_profit_rub, effective_target_monthly_return_pct
+from .research.targets import (
+    effective_target_monthly_return_pct,
+    effective_target_payload,
+)
 from .research.walk_forward import (
     WalkForwardValidator,
     _available_months,
@@ -212,16 +215,7 @@ class TradingOrchestrator:
         )
         payload = {
             "backtest_summary": summary,
-            "target": {
-                "monthly_profit_rub": round(
-                    effective_target_monthly_profit_rub(self.config.research, self.config.backtest),
-                    2,
-                ),
-                "monthly_return_pct": round(
-                    effective_target_monthly_return_pct(self.config.research, self.config.backtest),
-                    3,
-                ),
-            },
+            "target": effective_target_payload(self.config.research, self.config.backtest),
             "monte_carlo": simulator.run(result),
         }
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -303,16 +297,7 @@ class TradingOrchestrator:
         )
         if tuned_research is None:
             payload = {
-                "target": {
-                    "monthly_profit_rub": round(
-                        effective_target_monthly_profit_rub(self.config.research, self.config.backtest),
-                        2,
-                    ),
-                    "monthly_return_pct": round(
-                        effective_target_monthly_return_pct(self.config.research, self.config.backtest),
-                        3,
-                    ),
-                },
+                "target": effective_target_payload(self.config.research, self.config.backtest),
                 "research_window": research_window,
                 "changed": False,
                 "reason": research_window["reason"],
@@ -396,16 +381,7 @@ class TradingOrchestrator:
         )
         if tuned_research is None:
             payload = {
-                "target": {
-                    "monthly_profit_rub": round(
-                        effective_target_monthly_profit_rub(self.config.research, self.config.backtest),
-                        2,
-                    ),
-                    "monthly_return_pct": round(
-                        effective_target_monthly_return_pct(self.config.research, self.config.backtest),
-                        3,
-                    ),
-                },
+                "target": effective_target_payload(self.config.research, self.config.backtest),
                 "research_window": research_window,
                 "changed": False,
                 "reason": research_window["reason"],

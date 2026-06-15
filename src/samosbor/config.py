@@ -129,6 +129,8 @@ class ResearchSection:
     walk_forward_step_months: int = 1
     monte_carlo_iterations: int = 1000
     monte_carlo_horizon_months: int = 12
+    trading_days_per_month: int = 20
+    target_daily_profit_rub: float = 0.0
     target_monthly_return_pct: float = 5.0
     target_monthly_profit_rub: float = 0.0
     random_seed: int = 42

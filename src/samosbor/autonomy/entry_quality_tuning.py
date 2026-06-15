@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ..config import BacktestSection, ResearchSection
 from ..domain import TradeRecord
-from ..research.targets import effective_target_monthly_profit_rub, effective_target_monthly_return_pct
+from ..research.targets import effective_target_payload, render_target_label
 
 
 def build_signal_strength_breakdown(
@@ -56,15 +56,11 @@ def build_entry_quality_tuning_payload(
     evidence_trades = [trade for trade in recent if trade.signal_strength > 0]
     breakdown = build_signal_strength_breakdown(evidence_trades)
 
-    target_profit = effective_target_monthly_profit_rub(research, backtest)
-    target_return = effective_target_monthly_return_pct(research, backtest)
+    target = effective_target_payload(research, backtest)
     if len(evidence_trades) < min_trades:
         empty_summary = _trade_summary([])
         return {
-            "target": {
-                "monthly_profit_rub": round(target_profit, 2),
-                "monthly_return_pct": round(target_return, 3),
-            },
+            "target": target,
             "evidence_source": evidence_source,
             "lookback": {
                 "requested_trades": lookback_trades,
@@ -151,10 +147,7 @@ def build_entry_quality_tuning_payload(
         best_summary = best_candidate["summary"]
 
     return {
-        "target": {
-            "monthly_profit_rub": round(target_profit, 2),
-            "monthly_return_pct": round(target_return, 3),
-        },
+        "target": target,
         "evidence_source": evidence_source,
         "lookback": {
             "requested_trades": lookback_trades,
@@ -264,7 +257,7 @@ def _render_markdown(payload: dict[str, object]) -> str:
     lines = [
         "# Entry Quality Tuning",
         "",
-        f"- Target: {payload['target']['monthly_profit_rub']} RUB/month ({payload['target']['monthly_return_pct']}%)",
+        f"- Target: {render_target_label(payload['target'])}",
         f"- Evidence source: {payload['evidence_source']}",
         f"- Changed: {payload['changed']}",
         f"- Reason: {payload['reason']}",
