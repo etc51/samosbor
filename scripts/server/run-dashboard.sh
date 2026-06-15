@@ -6,7 +6,7 @@ cd "$ROOT_DIR"
 
 source "$ROOT_DIR/.venv/bin/activate"
 exec python -m samosbor.dashboard \
-  --config configs/server_tbank_cnyrubf_premium.toml \
-  --effective-config configs/server_tbank_cnyrubf_premium.effective.toml \
+  --config configs/server_tbank_stocks_intraday_300k_focused.toml \
+  --effective-config configs/server_tbank_stocks_intraday_300k_focused.effective.toml \
   --host 0.0.0.0 \
   --port 8790

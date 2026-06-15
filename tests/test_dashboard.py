@@ -27,19 +27,19 @@ class DashboardTest(unittest.TestCase):
                         'timezone = "Europe/Moscow"',
                         "",
                         "[tbank]",
-                        'account_name = "Фьючерсы"',
+                        'account_name = "Акции"',
                         "",
                         "[data]",
                         'source = "csv"',
                         'csv_path = "data/demo.csv"',
                         "",
                         "[[data.instruments]]",
-                        'symbol = "CNYRUBF"',
-                        'instrument_type = "future"',
+                        'symbol = "LKOH"',
+                        'instrument_type = "stock"',
                         "",
                         "[[data.instruments]]",
-                        'symbol = "USDRUBF"',
-                        'instrument_type = "future"',
+                        'symbol = "TATN"',
+                        'instrument_type = "stock"',
                         "",
                         "[strategy]",
                         'style = "ema_adx_macd"',
@@ -71,14 +71,14 @@ class DashboardTest(unittest.TestCase):
                             "peak_equity": 300100.0,
                             "trading_halted": False,
                             "positions": {
-                                "CNYRUBF": {
-                                    "direction": "short",
+                                "LKOH": {
+                                    "direction": "long",
                                     "quantity_lots": 1,
-                                    "entry_price": 10.61,
-                                    "current_price": 10.49,
-                                    "stop_price": 10.68,
-                                    "take_profit": 10.50,
-                                    "margin_requirement": 850.72,
+                                    "entry_price": 7025.0,
+                                    "current_price": 7080.0,
+                                    "stop_price": 6960.0,
+                                    "take_profit": 7155.0,
+                                    "margin_requirement": 0.0,
                                     "signal_strength": 0.77,
                                     "opened_at": "2026-06-15T09:00:00+00:00",
                                     "updated_at": "2026-06-15T09:35:00+00:00",
@@ -92,7 +92,7 @@ class DashboardTest(unittest.TestCase):
                 encoding="utf-8",
             )
             (state_dir / "demo_state_signal_feedback.json").write_text(
-                json.dumps({"pending": [{"symbol": "USDRUBF"}], "resolved": [{"symbol": "CNYRUBF"}]}),
+                json.dumps({"pending": [{"symbol": "TATN"}], "resolved": [{"symbol": "LKOH"}]}),
                 encoding="utf-8",
             )
 
@@ -126,14 +126,14 @@ class DashboardTest(unittest.TestCase):
                     "effective_config_path": str(config_dir / "paper.effective.toml"),
                     "applied_strategy_overrides": {
                         "allowed_entry_hours": [9, 10, 12],
-                        "blocked_long_symbols": ["CNYRUBF"],
+                        "blocked_long_symbols": ["LKOH"],
                     },
                     "rollback_guardrail": {"rollback_to_base": False, "reason": "ok"},
                     "sources": [
                         {
                             "source": "entry-symbols",
                             "changed": True,
-                            "selected_values": {"blocked_long_symbols": ["CNYRUBF"]},
+                            "selected_values": {"blocked_long_symbols": ["LKOH"]},
                             "activation": {"reason": "confirmed"},
                         }
                     ],
@@ -147,11 +147,11 @@ class DashboardTest(unittest.TestCase):
                     "reason": "entry symbol restrictions updated from paper results",
                     "evidence_source": "signal-feedback",
                     "proposed_blocked_symbols": [],
-                    "proposed_blocked_long_symbols": ["CNYRUBF"],
+                    "proposed_blocked_long_symbols": ["LKOH"],
                     "proposed_blocked_short_symbols": [],
                     "symbol_direction_breakdown": [
                         {
-                            "symbol": "CNYRUBF",
+                            "symbol": "LKOH",
                             "direction": "long",
                             "trades": 8,
                             "win_rate_pct": 37.5,
@@ -195,11 +195,11 @@ class DashboardTest(unittest.TestCase):
             self.assertEqual(payload["runtime"]["latest_cycle"]["equity_rub"], 299995.1)
             self.assertEqual(
                 payload["autonomy"]["effective_runtime"]["applied_strategy_overrides"]["blocked_long_symbols"],
-                ["CNYRUBF"],
+                ["LKOH"],
             )
             self.assertEqual(payload["runtime"]["signal_feedback"]["resolved_signals"], 1)
             self.assertIn("Samosbor Paper Dashboard", html)
-            self.assertIn("CNYRUBF", html)
+            self.assertIn("LKOH", html)
             self.assertIn("blocked_long_symbols", html)
 
     @staticmethod

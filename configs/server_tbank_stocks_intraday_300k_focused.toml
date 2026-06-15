@@ -11,10 +11,9 @@ app_name = "samosbor"
 ssl_verify_env = "SSL_TBANK_VERIFY"
 
 [data]
-source = "parquet-directory"
+source = "tbank"
 timeframe = "30min"
 history_days = 120
-parquet_dir_path = "D:/3_pips_x2_project/historical_data/D_moex_strategy_lab_data_processed"
 
 [[data.instruments]]
 symbol = "SBER"
@@ -75,7 +74,7 @@ min_trades_for_kelly = 8
 mode = "local-paper"
 slippage_bps = 4.0
 commission_bps = 4.0
-state_path = "state/local_pack_stocks_intraday_300k_focused_state.json"
+state_path = "state/server_tbank_stocks_intraday_300k_focused_state.json"
 allow_live_trading = false
 
 [backtest]

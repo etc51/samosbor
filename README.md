@@ -12,29 +12,31 @@
 
 Цели текущей версии:
 
-- получать рыночные данные по ликвидным акциям и фьючерсам через T-Bank API
-- строить сигналы на базе тренда, волатильности и ликвидности
+- получать рыночные данные по акциям 1 и 2 эшелона Мосбиржи через T-Bank API и локальный архив на `D:`
+- строить трендовые intraday-сигналы на базе `pandas-ta`, волатильности и ликвидности
 - ограничивать риск на сделку и на портфель
 - вести полный журнал действий
 - считать базовые метрики эффективности: доходность, просадка, Sharpe, win rate, profit factor
-- запускать backtest и paper-cycle из CLI
+- запускать backtest, research и paper-cycle из CLI с целевым виртуальным бюджетом `300 000 RUB`
 
 ## Структура
 
 - `src/samosbor/` — код системы
-- `configs/paper.toml` — пример конфигурации
+- `configs/paper.toml` — базовый stock-trend paper-профиль на `300 000 RUB`
 - `configs/local_pack_research.toml` — research-конфиг для локального архива свечей на `D:`
 - `configs/local_pack_ta_research.toml` — сфокусированный TA-search по сильным MOEX futures
 - `configs/local_pack_server_multi_300k.toml` — общий research-профиль под server-runtime, budget `300 000 RUB` и target midpoint `3000 RUB/день`
-- `configs/local_pack_stocks_intraday_300k.toml` — локальный research-профиль под intraday MOEX stocks с обязательным закрытием позиций в late-session окне
+- `configs/local_pack_stocks_intraday_300k.toml` — локальный research-профиль под расширенный universe акций 1–2 эшелона из архива на `D:`
+- `configs/local_pack_stocks_intraday_300k_focused.toml` — ускоренный локальный trend-only профиль для nightly-search на компактном shortlist
 - `configs/local_pack_server_pair_cny_usd_candidate.toml` — evidence-backed candidate для пары `CNYRUBF + USDRUBF`
 - `configs/local_pack_usdrubf_candidate.toml` — конфиг лучшего кандидата из локальной оптимизации
 - `configs/local_pack_cnyrubf_ta_candidate.toml` — TA-кандидат на `CNYRUBF`
 - `configs/local_pack_cnyrubf_ta_walk_forward.toml` — walk-forward валидация для `CNYRUBF` TA-кандидата
 - `configs/local_pack_cnyrubf_ta_aggressive.toml` — усиленный риск-профиль для лучшего `CNYRUBF`-кандидата
 - `configs/local_pack_fx_index_ta_aggressive.toml` — более агрессивный TA-портфель `USDRUBF + CNYRUBF + IMOEXF`
-- `configs/server_tbank_cnyrubf_premium.toml` — серверный multi-futures paper-runtime через T-Bank API с виртуальным бюджетом `300 000 RUB`
-- `configs/server_tbank_stocks_intraday_300k.toml` — отдельный stock intraday paper-runtime через T-Bank API
+- `configs/server_tbank_cnyrubf_premium.toml` — legacy server-config для multi-futures paper-runtime, оставленный для архивного research
+- `configs/server_tbank_stocks_intraday_300k.toml` — server paper-runtime под stock-trend контур через T-Bank API
+- `configs/server_tbank_stocks_intraday_300k_focused.toml` — более лёгкий trend-only server runtime для ночной автономии на shortlist ликвидных бумаг
 - `docs/architecture.md` — архитектура и логика работы
 - `requirements-tbank.txt` — установка актуального SDK Т-Банка
 - `tests/` — smoke/unit tests
@@ -60,7 +62,7 @@ python -m venv .venv
 ```dotenv
 TBANK_INVEST_TOKEN=...
 TBANK_ACCOUNT_ID=...
-TBANK_ACCOUNT_NAME=Фьючерсы
+TBANK_ACCOUNT_NAME=Акции
 SSL_TBANK_VERIFY=True
 ```
 
@@ -85,101 +87,101 @@ SSL_TBANK_VERIFY=True
 Соберите краткую сводку по фактическим paper-сделкам:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml paper-report --days 1
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_stocks_intraday_300k_focused.toml paper-report --days 1
 ```
 
 Постройте безопасную рекомендацию по часам входа из последних результатов:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-hours --days 45 --min-trades-per-hour 3
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_stocks_intraday_300k_focused.toml tune-entry-hours --days 45 --min-trades-per-hour 3
 ```
 
 Постройте безопасную рекомендацию по параметрам входа/выхода из walk-forward:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-strategy
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_stocks_intraday_300k_focused.toml tune-strategy
 ```
 
 Постройте отдельную рекомендацию по качеству выходов:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-exits
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_stocks_intraday_300k_focused.toml tune-exits
 ```
 
 Постройте рекомендацию по качеству входов уже из реальных paper-сделок:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-quality --lookback-trades 40 --min-trades 8
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_stocks_intraday_300k_focused.toml tune-entry-quality --lookback-trades 40 --min-trades 8
 ```
 
 Постройте рекомендацию по временному отключению самых слабых тикеров из paper-статистики:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-symbols --days 45 --min-trades-per-symbol 4
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_stocks_intraday_300k_focused.toml tune-entry-symbols --days 45 --min-trades-per-symbol 4
 ```
 
 Тот же autotune теперь умеет отдельно блокировать только слабый `long` или только слабый `short` по инструменту:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-symbols --days 45 --min-trades-per-direction-symbol 4
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_stocks_intraday_300k_focused.toml tune-entry-symbols --days 45 --min-trades-per-direction-symbol 4
 ```
 
 Если нужно сразу наполнить shadow feedback из недавней истории, а не ждать новые сделки:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml bootstrap-entry-feedback
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_stocks_intraday_300k_focused.toml bootstrap-entry-feedback
 ```
 
 Чтобы собрать производный runtime-конфиг из последних autotune-артефактов:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml refresh-effective-config
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_stocks_intraday_300k_focused.toml refresh-effective-config
 ```
 
 Чтобы принудительно прогнать весь ночной автономный цикл обучения:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.effective.toml nightly-autonomy --base-config configs/server_tbank_cnyrubf_premium.toml --effective-output configs/server_tbank_cnyrubf_premium.effective.toml
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_stocks_intraday_300k_focused.effective.toml nightly-autonomy --base-config configs/server_tbank_stocks_intraday_300k_focused.toml --effective-output configs/server_tbank_stocks_intraday_300k_focused.effective.toml
 ```
 
 Чтобы локально поднять отдельный `samosbor` dashboard именно для этого paper-runtime:
 
 ```powershell
-.\.venv\Scripts\python -m samosbor.dashboard --config configs/server_tbank_cnyrubf_premium.toml --effective-config configs/server_tbank_cnyrubf_premium.effective.toml --host 127.0.0.1 --port 8790
+.\.venv\Scripts\python -m samosbor.dashboard --config configs/server_tbank_stocks_intraday_300k_focused.toml --effective-config configs/server_tbank_stocks_intraday_300k_focused.effective.toml --host 127.0.0.1 --port 8790
 ```
 
 ## Server Runtime
 
 Для 24/7 серверного paper-режима подготовлены:
 
-- runtime-конфиг [configs/server_tbank_cnyrubf_premium.toml](/D:/projects/samosbor/configs/server_tbank_cnyrubf_premium.toml)
+- runtime-конфиг [configs/server_tbank_stocks_intraday_300k_focused.toml](/D:/projects/samosbor/configs/server_tbank_stocks_intraday_300k_focused.toml)
 - server scripts в [scripts/server](/D:/projects/samosbor/scripts/server)
 - systemd units в [deploy/systemd](/D:/projects/samosbor/deploy/systemd)
 - отдельный `samosbor-dashboard.service` для своей web-морды на порту `8790`
 
 Логика расписания:
 
-- systemd timer запускает `paper-cycle` каждые `5` минут в широкое MOEX futures-окно
-- активный server-runtime сейчас торгует evidence-backed pair `USDRUBF + CNYRUBF`, выбранную на локальном архиве через optimizer + walk-forward
-- входы по умолчанию открыты на всю основную liquid-сессию `09:00-22:59 MSK`, а nightly-autonomy уже может позже сузить часы по фактической статистике paper-сделок
+- systemd timer запускает `paper-cycle` каждые `5` минут в основную MOEX stock-сессию
+- канонический focused runtime сейчас ориентирован на shortlist `SBER + GAZP + LKOH + TATN`, а широкий stock-universe оставлен для offline research
+- входы по умолчанию открыты на основную intraday-сессию `10:00-17:59 MSK`, а nightly-autonomy уже может позже сузить часы по фактической статистике paper-сделок
 
 Автообновление:
 
 - `samosbor-updater.timer` проверяет GitHub каждые `15` минут
 - при новом коммите делает `git pull --ff-only`, обновляет окружение, прогоняет unit tests и затем сам синхронизирует `systemd` units через `scripts/server/install-server.sh`
 - `samosbor-dashboard.service` показывает только текущий `samosbor` paper-runtime, active overrides, open positions и autonomy artifacts, не смешивая их с legacy dashboards на сервере
-- для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
+- для stock paper-runtime через T-Bank API sizing идёт через обычный equity-based risk manager без реальных ордеров; futures-ветка остаётся в проекте как legacy-совместимость
 - `samosbor-daily-review.timer` после торговой сессии запускает единый `nightly-autonomy` цикл: daily analyze, entry restrictions, signal-feedback bootstrap, optimizer, walk-forward research, active-universe selection, Monte Carlo, strategy/exit tuning и финальную пересборку effective config
 - daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/entry-symbols`, `runs/autotune/entry-quality`, `runs/autotune/strategy` и `runs/autotune/exits`
 - тот же nightly cycle теперь дополнительно пишет агрегированный summary в `runs/autotune/nightly-autonomy`
-- `paper-cycle` теперь работает через производный `configs/server_tbank_cnyrubf_premium.effective.toml`, который каждый раз пересобирается именно из базового server TOML плюс последних autotune-артефактов и сохраняет `local-paper` / `allow_live_trading = false`
+- `paper-cycle` теперь работает через производный `configs/server_tbank_stocks_intraday_300k_focused.effective.toml`, который каждый раз пересобирается именно из базового server TOML плюс последних autotune-артефактов и сохраняет `local-paper` / `allow_live_trading = false`
 
 Активная целевая функция autotune:
 
 - рабочий target теперь привязан к прибыли `2000-4000 RUB/день`
 - в активном server-runtime и nightly-autonomy используется midpoint `3000 RUB/день`
 - при виртуальном paper-капитале `300 000 RUB` это соответствует эквиваленту `60 000 RUB/мес` при `20` торговых днях, то есть целевым `20.0%` среднего месячного дохода
-- последний focused research для server-runtime показал, что pair `CNYRUBF + USDRUBF` на текущем TA-профиле выглядит сильнее широкого multi-futures baseline
+- последний stock-backtest на широком 10-бумажном universe оказался слабым, поэтому server runtime сейчас смещён к компактному shortlist, а не к широкой stock-сетке
 - для exit autotune серверный research-grid теперь перебирает несколько соседних значений `atr_stop_multiple` и `reward_to_risk`, но применяет только candidate patch под guardrails
 - для entry-quality autotune сделки теперь сохраняют `signal_strength`, а отдельный paper-feedback контур предлагает `min_signal_strength` только когда накоплено достаточно закрытых paper-сделок
 - `tune-entry-symbols` использует `symbol_breakdown` из paper-report и может временно добавить слабые тикеры в `blocked_symbols`, не закрывая уже открытые позиции

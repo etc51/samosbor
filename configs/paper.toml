@@ -6,7 +6,7 @@ timezone = "Europe/Moscow"
 token_env = "TBANK_INVEST_TOKEN"
 sandbox_token_env = "TBANK_SANDBOX_TOKEN"
 account_id_env = "TBANK_ACCOUNT_ID"
-account_name = "Фьючерсы"
+account_name = "Акции"
 app_name = "samosbor"
 ssl_verify_env = "SSL_TBANK_VERIFY"
 
@@ -27,6 +27,34 @@ instrument_type = "stock"
 symbol = "LKOH"
 instrument_type = "stock"
 
+[[data.instruments]]
+symbol = "ROSN"
+instrument_type = "stock"
+
+[[data.instruments]]
+symbol = "NVTK"
+instrument_type = "stock"
+
+[[data.instruments]]
+symbol = "TATN"
+instrument_type = "stock"
+
+[[data.instruments]]
+symbol = "VTBR"
+instrument_type = "stock"
+
+[[data.instruments]]
+symbol = "CHMF"
+instrument_type = "stock"
+
+[[data.instruments]]
+symbol = "PIKK"
+instrument_type = "stock"
+
+[[data.instruments]]
+symbol = "POSI"
+instrument_type = "stock"
+
 [strategy]
 style = "ema_adx_macd"
 fast_window = 20
@@ -39,7 +67,7 @@ atr_stop_multiple = 2.0
 reward_to_risk = 2.0
 min_signal_strength = 0.0
 min_trend_strength = 0.002
-min_liquidity_rub = 50000000
+min_liquidity_rub = 6000000
 allow_shorts = true
 adx_window = 14
 adx_min = 20.0
@@ -72,11 +100,11 @@ min_trades_for_kelly = 8
 mode = "local-paper"
 slippage_bps = 5.0
 commission_bps = 5.0
-state_path = "state/paper_state.json"
+state_path = "state/paper_stocks_300k_state.json"
 allow_live_trading = false
 
 [backtest]
-initial_cash = 1000000
+initial_cash = 300000
 warmup_bars = 60
 
 [reporting]
@@ -87,17 +115,17 @@ write_csv = true
 strategy_styles = ["ema_adx_macd", "rsi_mean_reversion"]
 fast_windows = [10, 15, 20]
 slow_windows = [30, 40, 50]
-require_breakout_values = [false, true]
-atr_stop_multipliers = [1.5, 2.0]
-reward_to_risk_values = [1.5, 2.0, 2.5]
-trend_strength_values = [0.002, 0.004]
+require_breakout_values = [false]
+atr_stop_multipliers = [1.25, 1.5]
+reward_to_risk_values = [1.5, 2.0]
+trend_strength_values = [0.002]
 adx_min_values = [15.0, 20.0]
-rsi_long_max_values = [65.0, 70.0, 75.0]
-rsi_short_min_values = [25.0, 30.0, 35.0]
+rsi_long_max_values = [70.0, 75.0]
+rsi_short_min_values = [25.0, 30.0]
 subset_min_size = 1
-subset_max_size = 3
+subset_max_size = 2
 top_n = 10
-min_trades = 6
+min_trades = 10
 walk_forward_train_months = 4
 walk_forward_test_months = 1
 walk_forward_step_months = 1

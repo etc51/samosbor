@@ -1,8 +1,8 @@
 [Unit]
-Description=Run Samosbor paper cycle every 5 minutes during MOEX futures session
+Description=Run Samosbor paper cycle every 5 minutes during the MOEX stock main session
 
 [Timer]
-OnCalendar=Mon..Fri *-*-* 06..20:00/5:00 UTC
+OnCalendar=Mon..Fri *-*-* 07..15:00/5:00 UTC
 Persistent=true
 Unit=samosbor-paper-cycle.service
 

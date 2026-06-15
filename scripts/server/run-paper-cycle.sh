@@ -12,8 +12,8 @@ if ! flock -n 9; then
 fi
 
 source "$ROOT_DIR/.venv/bin/activate"
-BASE_CONFIG="configs/server_tbank_cnyrubf_premium.toml"
-EFFECTIVE_CONFIG="configs/server_tbank_cnyrubf_premium.effective.toml"
+BASE_CONFIG="configs/server_tbank_stocks_intraday_300k_focused.toml"
+EFFECTIVE_CONFIG="configs/server_tbank_stocks_intraday_300k_focused.effective.toml"
 
 python -m samosbor.cli --config "$BASE_CONFIG" refresh-effective-config --output "$EFFECTIVE_CONFIG"
 python -m samosbor.cli --config "$EFFECTIVE_CONFIG" paper-cycle

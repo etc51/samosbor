@@ -201,7 +201,7 @@ CLI-сценарии:
 
 Файлы:
 
-- [configs/server_tbank_cnyrubf_premium.toml](/D:/projects/samosbor/configs/server_tbank_cnyrubf_premium.toml)
+- [configs/server_tbank_stocks_intraday_300k_focused.toml](/D:/projects/samosbor/configs/server_tbank_stocks_intraday_300k_focused.toml)
 - [scripts/server](/D:/projects/samosbor/scripts/server)
 - [deploy/systemd](/D:/projects/samosbor/deploy/systemd)
 - [src/samosbor/dashboard.py](/D:/projects/samosbor/src/samosbor/dashboard.py)
@@ -210,9 +210,9 @@ CLI-сценарии:
 
 - runtime работает в `local-paper`
 - market data приходят через T-Bank API
-- для futures runtime дополнительно подтягивает `GetFuturesMargin` и использует его в sizing/risk checks
-- systemd timer вызывает `paper-cycle` каждый час в торговую сессию
-- перед каждым cycle server собирает `configs/server_tbank_cnyrubf_premium.effective.toml` из базового server TOML и последних autotune-артефактов, а затем торгует уже по этой производной конфигурации
+- stock-first runtime работает на focused shortlist ликвидных акций 1–2 эшелона, а более широкие stock/futures профили остаются для offline research
+- systemd timer вызывает `paper-cycle` каждые `5` минут в основную MOEX stock-сессию
+- перед каждым cycle server собирает `configs/server_tbank_stocks_intraday_300k_focused.effective.toml` из базового server TOML и последних autotune-артефактов, а затем торгует уже по этой производной конфигурации
 - отдельный daily-review timer теперь запускает единый `nightly-autonomy` pipeline
 - этот pipeline явно включает analyze (`paper-report`), restrictions (`tune-entry-hours`, `tune-entry-quality`, signal-feedback bootstrap), optimizer (`optimize`), research (`walk-forward`, `monte-carlo`), active-universe selection (`tune-universe`), strategy/exit tuning и финальную пересборку effective config
 - отдельная команда `refresh-effective-config` собирает производный runtime TOML из последних autotune-артефактов, не трогая базовый config
