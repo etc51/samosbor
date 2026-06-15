@@ -224,6 +224,7 @@ CLI-сценарии:
 - daily-review также запускает `tune-exits`, который крутит только `atr_stop_multiple` и `reward_to_risk` на том же OOS-окне и тоже пишет лишь candidate patch
 - entry schedule дополнительно фильтруется на уровне стратегии через `allowed_entry_hours` по `Europe/Moscow`
 - отдельный `samosbor-dashboard.service` читает `state/` и `runs/` и показывает именно этот paper-runtime на своём порту, отдельно от legacy `3pips` dashboards
+- `update-from-github.sh` после успешных тестов сам вызывает `install-server.sh`, поэтому новые `systemd` units и dashboard/service rollout теперь доходят до сервера автоматически
 
 ## Дальнейшее развитие
 

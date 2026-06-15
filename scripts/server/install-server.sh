@@ -16,3 +16,4 @@ sudo systemctl enable --now samosbor-paper-cycle.timer
 sudo systemctl enable --now samosbor-daily-review.timer
 sudo systemctl enable --now samosbor-updater.timer
 sudo systemctl enable --now samosbor-dashboard.service
+sudo systemctl restart samosbor-dashboard.service

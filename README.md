@@ -166,7 +166,7 @@ SSL_TBANK_VERIFY=True
 Автообновление:
 
 - `samosbor-updater.timer` проверяет GitHub каждые `15` минут
-- при новом коммите делает `git pull --ff-only`, обновляет окружение и прогоняет unit tests
+- при новом коммите делает `git pull --ff-only`, обновляет окружение, прогоняет unit tests и затем сам синхронизирует `systemd` units через `scripts/server/install-server.sh`
 - `samosbor-dashboard.service` показывает только текущий `samosbor` paper-runtime, active overrides, open positions и autonomy artifacts, не смешивая их с legacy dashboards на сервере
 - для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
 - `samosbor-daily-review.timer` после торговой сессии запускает единый `nightly-autonomy` цикл: daily analyze, entry restrictions, signal-feedback bootstrap, optimizer, walk-forward research, Monte Carlo, strategy/exit tuning и финальную пересборку effective config

@@ -143,11 +143,125 @@ def render_dashboard_html(payload: dict[str, object]) -> str:
     entry_symbols = dict(autonomy["entry_symbols"])
     entry_schedule = dict(autonomy["entry_schedule"])
     entry_quality = dict(autonomy["entry_quality"])
+    nightly_autonomy = dict(autonomy["nightly_autonomy"])
 
     positions_html = _render_positions(list(runtime["positions"]))
     overrides_html = _render_key_values(dict(effective_runtime["applied_strategy_overrides"]))
     sources_html = _render_sources(list(effective_runtime["sources"]))
     direction_rows_html = _render_direction_rows(list(entry_symbols["symbol_direction_breakdown"]))
+    status_badges_html = "".join(
+        [
+            _render_badge(f"mode: {config['paper_only_mode']}", tone="info"),
+            _render_badge("paper only", tone="good"),
+            _render_badge(
+                "live blocked" if not bool(config["allow_live_trading"]) else "live enabled",
+                tone="good" if not bool(config["allow_live_trading"]) else "bad",
+            ),
+            _render_badge(
+                "trading active"
+                if not bool(latest_cycle.get("trading_halted", portfolio_state.get("trading_halted", False)))
+                else "trading halted",
+                tone="good"
+                if not bool(latest_cycle.get("trading_halted", portfolio_state.get("trading_halted", False)))
+                else "warn",
+            ),
+        ]
+    )
+    runtime_meta_badges_html = "".join(
+        [
+            _render_badge(
+                f"resolved feedback: {int(runtime['signal_feedback']['resolved_signals'])}",
+                tone="info",
+            ),
+            _render_badge(
+                f"pending feedback: {int(runtime['signal_feedback']['pending_signals'])}",
+                tone="warn" if int(runtime["signal_feedback"]["pending_signals"]) else "neutral",
+            ),
+            _render_badge(
+                f"active overrides: {len(dict(effective_runtime['applied_strategy_overrides']))}",
+                tone="info",
+            ),
+            _render_badge(
+                f"allowed hours: {len(list(entry_schedule['proposed_hours']))}",
+                tone="neutral",
+            ),
+        ]
+    )
+    restriction_badges_html = "".join(
+        [
+            _render_badge(
+                f"blocked symbols: {', '.join(entry_symbols['proposed_blocked_symbols']) or '-'}",
+                tone="bad" if entry_symbols["proposed_blocked_symbols"] else "neutral",
+            ),
+            _render_badge(
+                f"blocked longs: {', '.join(entry_symbols['proposed_blocked_long_symbols']) or '-'}",
+                tone="warn" if entry_symbols["proposed_blocked_long_symbols"] else "neutral",
+            ),
+            _render_badge(
+                f"blocked shorts: {', '.join(entry_symbols['proposed_blocked_short_symbols']) or '-'}",
+                tone="warn" if entry_symbols["proposed_blocked_short_symbols"] else "neutral",
+            ),
+        ]
+    )
+    evidence_badges_html = "".join(
+        [
+            _render_badge(
+                f"symbols: {entry_symbols['evidence_source'] or '-'}",
+                tone="info",
+            ),
+            _render_badge(
+                f"schedule: {entry_schedule['evidence_source'] or '-'}",
+                tone="info",
+            ),
+            _render_badge(
+                f"quality: {entry_quality['evidence_source'] or '-'}",
+                tone="info",
+            ),
+        ]
+    )
+    nightly_steps_html = _render_chips(list(nightly_autonomy["steps_executed"]), tone="info")
+    instrument_chips_html = _render_chips(list(config["instruments"]), tone="neutral")
+
+    equity_rub = float(latest_cycle.get("equity_rub", portfolio_state.get("peak_equity_rub", 0.0)))
+    cash_rub = float(latest_cycle.get("cash_rub", portfolio_state.get("cash_rub", 0.0)))
+    exposure_rub = float(latest_cycle.get("gross_exposure_rub", 0.0))
+    realized_pnl_rub = float(portfolio_state.get("realized_pnl_rub", 0.0))
+    daily_pnl_rub = float(latest_report_summary.get("net_pnl_rub", 0.0))
+    open_positions = int(latest_cycle.get("open_positions", portfolio_state.get("open_positions", 0)))
+    resolved_feedback = int(runtime["signal_feedback"]["resolved_signals"])
+    active_override_count = len(dict(effective_runtime["applied_strategy_overrides"]))
+    active_restriction_count = (
+        len(entry_symbols["proposed_blocked_symbols"])
+        + len(entry_symbols["proposed_blocked_long_symbols"])
+        + len(entry_symbols["proposed_blocked_short_symbols"])
+    )
+    kpi_cards_html = "".join(
+        [
+            _render_stat_card("Equity", _fmt_money(equity_rub), _fmt_timestamp(str(latest_cycle.get("timestamp", "")))),
+            _render_stat_card("Cash", _fmt_money(cash_rub), "Свободные paper-средства"),
+            _render_stat_card("Exposure", _fmt_money(exposure_rub), "Текущее gross exposure"),
+            _render_stat_card(
+                "Realized PnL",
+                _fmt_money(realized_pnl_rub),
+                "Реализованный результат",
+                tone=_number_tone(realized_pnl_rub),
+            ),
+            _render_stat_card(
+                "Day Net",
+                _fmt_money(daily_pnl_rub),
+                f"Закрытых сделок: {int(latest_report_summary.get('trades', 0))}",
+                tone=_number_tone(daily_pnl_rub),
+            ),
+            _render_stat_card("Open Positions", str(open_positions), "Активные позиции сейчас"),
+            _render_stat_card("Resolved Signals", str(resolved_feedback), "Накопленная обратная связь"),
+            _render_stat_card(
+                "Restrictions",
+                str(active_restriction_count),
+                f"Overrides: {active_override_count}",
+                tone="warn" if active_restriction_count else "neutral",
+            ),
+        ]
+    )
 
     return f"""<!doctype html>
 <html lang="ru">
@@ -157,91 +271,279 @@ def render_dashboard_html(payload: dict[str, object]) -> str:
   <title>Samosbor Paper Dashboard</title>
   <style>
     :root {{
-      --bg: #0d1117;
-      --panel: #161b22;
-      --panel-2: #1f2630;
-      --line: #2d3748;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --good: #3fb950;
-      --bad: #f85149;
-      --warn: #d29922;
-      --accent: #58a6ff;
+      color-scheme: dark;
+      --bg: #071219;
+      --panel: #0d1f28;
+      --panel-2: #122b36;
+      --line: #234758;
+      --line-soft: rgba(35, 71, 88, 0.54);
+      --text: #edf6fb;
+      --muted: #8fa8b7;
+      --good: #55d58f;
+      --bad: #ff7676;
+      --warn: #ffcc66;
+      --accent: #4ad2ff;
+      --accent-2: #89b4ff;
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
       font-family: "Segoe UI", Tahoma, sans-serif;
-      background: radial-gradient(circle at top, #182132 0, var(--bg) 45%);
+      background:
+        radial-gradient(circle at top right, rgba(74, 210, 255, 0.14), transparent 24%),
+        radial-gradient(circle at top left, rgba(137, 180, 255, 0.1), transparent 28%),
+        linear-gradient(180deg, #061018 0%, var(--bg) 100%);
       color: var(--text);
     }}
     .wrap {{
-      max-width: 1280px;
+      max-width: 1480px;
       margin: 0 auto;
-      padding: 24px;
+      padding: 22px;
     }}
-    h1, h2, h3 {{ margin: 0 0 12px; }}
-    p {{ margin: 0; color: var(--muted); }}
-    .grid {{
+    .topbar {{
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-end;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      margin: -22px -22px 18px;
+      padding: 18px 22px 16px;
+      border-bottom: 1px solid var(--line-soft);
+      background: rgba(6, 16, 24, 0.88);
+      backdrop-filter: blur(14px);
+    }}
+    h1 {{
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: 0.01em;
+    }}
+    h2 {{
+      margin: 0 0 12px;
+      font-size: 18px;
+    }}
+    h3 {{
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }}
+    p {{
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }}
+    .hero {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 16px;
-      margin-top: 20px;
+      gap: 10px;
     }}
-    .panel {{
-      background: rgba(22, 27, 34, 0.92);
+    .hero-sub {{
+      max-width: 780px;
+    }}
+    .badge-row {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }}
+    .status-box {{
+      min-width: 320px;
+      padding: 12px 14px;
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 18px;
-      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+      background: linear-gradient(180deg, rgba(13, 31, 40, 0.92), rgba(18, 43, 54, 0.8));
+      box-shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
     }}
-    .metric {{
-      font-size: 28px;
-      font-weight: 700;
+    .status-kicker {{
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }}
+    .status-line {{
+      margin-top: 10px;
+      font-size: 15px;
+      font-weight: 600;
+    }}
+    .status-meta {{
       margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }}
+    .cards {{
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }}
+    .layout {{
+      display: grid;
+      grid-template-columns: 1.28fr 0.92fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }}
+    .card, .panel {{
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(13, 31, 40, 0.92), rgba(18, 43, 54, 0.82));
+      border-radius: 18px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+    }}
+    .card {{
+      padding: 16px;
+      min-height: 108px;
+    }}
+    .panel {{
+      padding: 16px;
+    }}
+    .kpi-label {{
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }}
+    .kpi-value {{
+      font-size: 28px;
+      margin-top: 12px;
+      font-weight: 700;
+      line-height: 1.15;
+    }}
+    .kpi-note {{
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
     }}
     .good {{ color: var(--good); }}
     .bad {{ color: var(--bad); }}
     .warn {{ color: var(--warn); }}
-    .accent {{ color: var(--accent); }}
+    .info {{ color: var(--accent); }}
     .mono {{
       font-family: Consolas, "SFMono-Regular", monospace;
       font-size: 13px;
       white-space: pre-wrap;
       word-break: break-word;
     }}
+    .table-wrap {{
+      overflow-x: auto;
+    }}
     table {{
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
       font-size: 14px;
     }}
     th, td {{
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line-soft);
       text-align: left;
       vertical-align: top;
     }}
-    th {{ color: var(--muted); font-weight: 600; }}
+    th {{
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }}
+    tr:last-child td {{
+      border-bottom: none;
+    }}
     .chips {{
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 10px;
+      gap: 10px;
     }}
     .chip {{
-      padding: 6px 10px;
+      padding: 9px 12px;
       border: 1px solid var(--line);
       border-radius: 999px;
-      background: var(--panel-2);
+      background: rgba(7, 18, 25, 0.62);
       font-size: 13px;
+    }}
+    .chip.info {{
+      color: var(--accent);
+      border-color: rgba(74, 210, 255, 0.32);
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(7, 18, 25, 0.74);
+      font-size: 13px;
+      line-height: 1;
+      color: var(--text);
+    }}
+    .badge.good {{
+      border-color: rgba(85, 213, 143, 0.34);
+      color: var(--good);
+    }}
+    .badge.bad {{
+      border-color: rgba(255, 118, 118, 0.34);
+      color: var(--bad);
+    }}
+    .badge.warn {{
+      border-color: rgba(255, 204, 102, 0.34);
+      color: var(--warn);
+    }}
+    .badge.info {{
+      border-color: rgba(74, 210, 255, 0.34);
+      color: var(--accent);
+    }}
+    .stack {{
+      display: grid;
+      gap: 12px;
+    }}
+    .section-gap {{
+      margin-top: 14px;
     }}
     .footer {{
-      margin-top: 16px;
+      margin-top: 14px;
       color: var(--muted);
       font-size: 13px;
+      line-height: 1.45;
     }}
     a {{ color: var(--accent); }}
+    @media (max-width: 1280px) {{
+      .cards {{
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }}
+    }}
+    @media (max-width: 1050px) {{
+      .layout {{
+        grid-template-columns: 1fr;
+      }}
+      .topbar {{
+        align-items: flex-start;
+        flex-direction: column;
+      }}
+      .status-box {{
+        min-width: 0;
+        width: 100%;
+      }}
+    }}
+    @media (max-width: 760px) {{
+      .wrap {{
+        padding: 14px;
+      }}
+      .topbar {{
+        margin: -14px -14px 16px;
+        padding: 14px;
+      }}
+      .cards {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }}
+      .kpi-value {{
+        font-size: 22px;
+      }}
+      h1 {{
+        font-size: 24px;
+      }}
+      table {{
+        font-size: 13px;
+      }}
+    }}
   </style>
   <script>
     setTimeout(() => window.location.reload(), 15000);
@@ -249,103 +551,147 @@ def render_dashboard_html(payload: dict[str, object]) -> str:
 </head>
 <body>
   <div class="wrap">
-    <h1>Samosbor Paper Dashboard</h1>
-    <p>Отдельный dashboard для текущего samosbor runtime. Автообновление каждые 15 секунд.</p>
+    <header class="topbar">
+      <div class="hero">
+        <div>
+          <h1>Samosbor Paper Dashboard</h1>
+          <p class="hero-sub">Операционная панель для текущего samosbor runtime: позиции, ограничения, автотюнинг и доказательная обратная связь в одном экране.</p>
+        </div>
+        <div class="badge-row">{status_badges_html}</div>
+      </div>
+      <div class="status-box">
+        <div class="status-kicker">Runtime Snapshot</div>
+        <div class="status-line">{_escape(str(config["account_name"]))} | {_escape(str(config["paper_only_mode"]))}</div>
+        <div class="status-meta">
+          Последний цикл: <span class="mono">{_escape(_fmt_timestamp(str(latest_cycle.get("timestamp", ""))))}</span><br/>
+          Ночной цикл: <span class="mono">{_escape(_fmt_timestamp(str(nightly_autonomy.get("timestamp", ""))))}</span><br/>
+          Автообновление каждые 15 секунд
+        </div>
+      </div>
+    </header>
 
-    <div class="grid">
-      <section class="panel">
-        <h2>Runtime</h2>
-        <div class="metric">{_fmt_money(float(latest_cycle.get("equity_rub", portfolio_state.get("peak_equity_rub", 0.0))))}</div>
-        <p>Equity</p>
-        <table>
-          <tr><th>Cash</th><td>{_fmt_money(float(latest_cycle.get("cash_rub", portfolio_state.get("cash_rub", 0.0))))}</td></tr>
-          <tr><th>Exposure</th><td>{_fmt_money(float(latest_cycle.get("gross_exposure_rub", 0.0)))}</td></tr>
-          <tr><th>Open positions</th><td>{int(latest_cycle.get("open_positions", portfolio_state.get("open_positions", 0)))}</td></tr>
-          <tr><th>Trading halted</th><td>{_bool_text(bool(latest_cycle.get("trading_halted", portfolio_state.get("trading_halted", False))))}</td></tr>
-          <tr><th>Last cycle</th><td class="mono">{_escape(str(latest_cycle.get("timestamp", "")))}</td></tr>
-        </table>
-      </section>
+    <div class="cards">{kpi_cards_html}</div>
 
-      <section class="panel">
-        <h2>Paper Safety</h2>
-        <table>
-          <tr><th>Mode</th><td>{_escape(str(config["paper_only_mode"]))}</td></tr>
-          <tr><th>Live allowed</th><td>{_bool_text(bool(config["allow_live_trading"]))}</td></tr>
-          <tr><th>Account</th><td>{_escape(str(config["account_name"]))}</td></tr>
-          <tr><th>Universe</th><td>{_escape(", ".join(config["instruments"]))}</td></tr>
-          <tr><th>Resolved feedback</th><td>{int(runtime["signal_feedback"]["resolved_signals"])}</td></tr>
-          <tr><th>Pending feedback</th><td>{int(runtime["signal_feedback"]["pending_signals"])}</td></tr>
-        </table>
-      </section>
-
-      <section class="panel">
-        <h2>Active Overrides</h2>
-        {overrides_html}
-        <div class="footer">Rollback guardrail: {_escape(str(effective_runtime["rollback_guardrail"].get("reason", "")))}</div>
-      </section>
-
-      <section class="panel">
-        <h2>Daily Summary</h2>
-        <table>
-          <tr><th>Trades</th><td>{int(latest_report_summary.get("trades", 0))}</td></tr>
-          <tr><th>Net PnL</th><td>{_fmt_money(float(latest_report_summary.get("net_pnl_rub", 0.0)))}</td></tr>
-          <tr><th>Win rate</th><td>{float(latest_report_summary.get("win_rate_pct", 0.0)):.3f}%</td></tr>
-          <tr><th>Profit factor</th><td>{float(latest_report_summary.get("profit_factor", 0.0)):.3f}</td></tr>
-          <tr><th>Expectancy</th><td>{_fmt_money(float(latest_report_summary.get("expectancy_rub", 0.0)))}</td></tr>
-          <tr><th>Report open positions</th><td>{int(latest_report_portfolio.get("open_positions", 0))}</td></tr>
-        </table>
-      </section>
-    </div>
-
-    <div class="grid">
+    <div class="layout">
       <section class="panel">
         <h2>Open Positions</h2>
-        {positions_html}
+        <div class="table-wrap">{positions_html}</div>
       </section>
-
       <section class="panel">
-        <h2>Directional Restrictions</h2>
-        <div class="chips">
-          <span class="chip">Blocked symbols: {_escape(", ".join(entry_symbols["proposed_blocked_symbols"]) or "-")}</span>
-          <span class="chip">Blocked longs: {_escape(", ".join(entry_symbols["proposed_blocked_long_symbols"]) or "-")}</span>
-          <span class="chip">Blocked shorts: {_escape(", ".join(entry_symbols["proposed_blocked_short_symbols"]) or "-")}</span>
+        <h2>Trade Posture</h2>
+        <div class="stack">
+          <div>
+            <h3>Runtime Flags</h3>
+            <div class="badge-row">{runtime_meta_badges_html}</div>
+          </div>
+          <div>
+            <h3>Universe</h3>
+            <div class="chips">{instrument_chips_html}</div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <tr><th>Mode</th><td>{_escape(str(config["paper_only_mode"]))}</td></tr>
+              <tr><th>Live allowed</th><td>{_bool_text(bool(config["allow_live_trading"]))}</td></tr>
+              <tr><th>Trading halted</th><td>{_bool_text(bool(latest_cycle.get("trading_halted", portfolio_state.get("trading_halted", False))))}</td></tr>
+              <tr><th>Peak equity</th><td>{_fmt_money(float(portfolio_state.get("peak_equity_rub", 0.0)))}</td></tr>
+              <tr><th>Last cycle</th><td class="mono">{_escape(_fmt_timestamp(str(latest_cycle.get("timestamp", ""))))}</td></tr>
+              <tr><th>Nightly cycle</th><td class="mono">{_escape(_fmt_timestamp(str(nightly_autonomy.get("timestamp", ""))))}</td></tr>
+            </table>
+          </div>
         </div>
-        <div class="footer">{_escape(str(entry_symbols["reason"]))} | source={_escape(str(entry_symbols["evidence_source"]))}</div>
-        {direction_rows_html}
       </section>
     </div>
 
-    <div class="grid">
+    <div class="layout">
       <section class="panel">
-        <h2>Entry Schedule</h2>
-        <div class="chips">{_render_chips(entry_schedule.get("proposed_hours", []))}</div>
-        <div class="footer">{_escape(str(entry_schedule["reason"]))} | source={_escape(str(entry_schedule["evidence_source"]))}</div>
+        <h2>Daily Summary</h2>
+        <div class="table-wrap">
+          <table>
+            <tr><th>Trades</th><td>{int(latest_report_summary.get("trades", 0))}</td></tr>
+            <tr><th>Net PnL</th><td class="{_number_tone(float(latest_report_summary.get("net_pnl_rub", 0.0)))}">{_fmt_money(float(latest_report_summary.get("net_pnl_rub", 0.0)))}</td></tr>
+            <tr><th>Win rate</th><td>{float(latest_report_summary.get("win_rate_pct", 0.0)):.3f}%</td></tr>
+            <tr><th>Profit factor</th><td>{float(latest_report_summary.get("profit_factor", 0.0)):.3f}</td></tr>
+            <tr><th>Expectancy</th><td class="{_number_tone(float(latest_report_summary.get("expectancy_rub", 0.0)))}">{_fmt_money(float(latest_report_summary.get("expectancy_rub", 0.0)))}</td></tr>
+            <tr><th>Report open positions</th><td>{int(latest_report_portfolio.get("open_positions", 0))}</td></tr>
+          </table>
+        </div>
       </section>
-
-      <section class="panel">
-        <h2>Entry Quality</h2>
-        <table>
-          <tr><th>Changed</th><td>{_bool_text(bool(entry_quality["changed"]))}</td></tr>
-          <tr><th>Recommended min strength</th><td>{float(entry_quality["recommended_min_signal_strength"]):.3f}</td></tr>
-          <tr><th>Reason</th><td>{_escape(str(entry_quality["reason"]))}</td></tr>
-        </table>
-      </section>
-
       <section class="panel">
         <h2>Autonomy Cycle</h2>
-        <div class="mono">{_escape("\\n".join(autonomy["nightly_autonomy"]["steps_executed"])) or "No nightly autonomy artifact yet"}</div>
+        <div class="stack">
+          <div>
+            <h3>Pipeline Steps</h3>
+            <div class="chips">{nightly_steps_html}</div>
+          </div>
+          <div>
+            <h3>Evidence Sources</h3>
+            <div class="badge-row">{evidence_badges_html}</div>
+          </div>
+          <div class="footer">
+            Rollback guardrail: {_escape(str(effective_runtime["rollback_guardrail"].get("reason", "")))}<br/>
+            Nightly output: <span class="mono">{_escape(str(nightly_autonomy.get("output_dir", "")) or "-")}</span>
+          </div>
+        </div>
       </section>
     </div>
 
-    <div class="panel" style="margin-top: 16px;">
+    <div class="layout">
+      <section class="panel">
+        <h2>Entry Restrictions</h2>
+        <div class="stack">
+          <div>
+            <h3>Directional Blocks</h3>
+            <div class="badge-row">{restriction_badges_html}</div>
+          </div>
+          <div>
+            <h3>Allowed Entry Hours</h3>
+            <div class="chips">{_render_chips(entry_schedule.get("proposed_hours", []), tone="info")}</div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <tr><th>Symbol tune</th><td>{_bool_text(bool(entry_symbols["changed"]))}</td></tr>
+              <tr><th>Schedule tune</th><td>{_bool_text(bool(entry_schedule["changed"]))}</td></tr>
+              <tr><th>Quality tune</th><td>{_bool_text(bool(entry_quality["changed"]))}</td></tr>
+              <tr><th>Min signal strength</th><td>{float(entry_quality["recommended_min_signal_strength"]):.3f}</td></tr>
+            </table>
+          </div>
+          <div class="footer">
+            Symbols: {_escape(str(entry_symbols["reason"]))}<br/>
+            Schedule: {_escape(str(entry_schedule["reason"]))}<br/>
+            Quality: {_escape(str(entry_quality["reason"]))}
+          </div>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>Active Overrides</h2>
+        <div class="table-wrap">{overrides_html}</div>
+        <div class="footer">
+          Effective config: <span class="mono">{_escape(str(config["effective_config_path"]))}</span>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel section-gap">
+      <h2>Directional Breakdown</h2>
+      <div class="table-wrap">{direction_rows_html}</div>
+      <div class="footer">{_escape(str(entry_symbols["reason"]))} | source={_escape(str(entry_symbols["evidence_source"]))}</div>
+    </section>
+
+    <section class="panel section-gap">
       <h2>Active Sources</h2>
-      {sources_html}
+      <div class="table-wrap">{sources_html}</div>
+    </section>
+
+    <section class="panel section-gap">
+      <h2>Paths & API</h2>
       <div class="footer">
         Config: <span class="mono">{_escape(str(config["config_path"]))}</span><br/>
-        Effective: <span class="mono">{_escape(str(config["effective_config_path"]))}</span><br/>
+        State: <span class="mono">{_escape(str(config["state_path"]))}</span><br/>
+        Feedback: <span class="mono">{_escape(str(config["feedback_path"]))}</span><br/>
+        Reporting: <span class="mono">{_escape(str(config["reporting_dir"]))}</span><br/>
         JSON API: <a href="/api/payload">/api/payload</a> | Health: <a href="/health">/health</a>
       </div>
-    </div>
+    </section>
   </div>
 </body>
 </html>
@@ -532,10 +878,46 @@ def _render_key_values(values: dict[str, object]) -> str:
     return f"<table>{body}</table>"
 
 
-def _render_chips(values: list[object]) -> str:
+def _render_chips(values: list[object], *, tone: str = "neutral") -> str:
+    chip_class = f"chip {_escape(tone)}" if tone != "neutral" else "chip"
     if not values:
-        return "<span class=\"chip\">-</span>"
-    return "".join(f"<span class=\"chip\">{_escape(str(value))}</span>" for value in values)
+        return f"<span class=\"{chip_class}\">-</span>"
+    return "".join(f"<span class=\"{chip_class}\">{_escape(str(value))}</span>" for value in values)
+
+
+def _render_badge(text: str, *, tone: str = "neutral") -> str:
+    return f"<span class=\"badge {_escape(tone)}\">{_escape(text)}</span>"
+
+
+def _render_stat_card(label: str, value: str, note: str, *, tone: str = "neutral") -> str:
+    value_class = f" {tone}" if tone != "neutral" else ""
+    return (
+        "<div class=\"card\">"
+        f"<div class=\"kpi-label\">{_escape(label)}</div>"
+        f"<div class=\"kpi-value{value_class}\">{_escape(value)}</div>"
+        f"<div class=\"kpi-note\">{_escape(note)}</div>"
+        "</div>"
+    )
+
+
+def _number_tone(value: float) -> str:
+    if value > 0:
+        return "good"
+    if value < 0:
+        return "bad"
+    return "neutral"
+
+
+def _fmt_timestamp(value: str) -> str:
+    if not value:
+        return "-"
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+    zone = parsed.strftime("%z")
+    zone_suffix = f" UTC{zone[:3]}:{zone[3:]}" if zone else ""
+    return parsed.strftime("%Y-%m-%d %H:%M:%S") + zone_suffix
 
 
 def _fmt_money(value: float) -> str:
@@ -543,7 +925,7 @@ def _fmt_money(value: float) -> str:
 
 
 def _bool_text(value: bool) -> str:
-    return "yes" if value else "no"
+    return "да" if value else "нет"
 
 
 def _escape(value: str) -> str:

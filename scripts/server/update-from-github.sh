@@ -25,5 +25,6 @@ source "$ROOT_DIR/.venv/bin/activate"
 python -m pip install -r requirements-tbank.txt
 python -m pip install -e .
 python -m unittest discover -s tests -v
+"$ROOT_DIR/scripts/server/install-server.sh"
 
 echo "updated to $(git rev-parse --short HEAD)"
