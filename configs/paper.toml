@@ -112,7 +112,7 @@ output_dir = "runs"
 write_csv = true
 
 [research]
-strategy_styles = ["ema_adx_macd", "rsi_mean_reversion"]
+strategy_styles = ["ema_adx_macd", "ema_adx_donchian", "rsi_mean_reversion"]
 fast_windows = [10, 15, 20]
 slow_windows = [30, 40, 50]
 require_breakout_values = [false]

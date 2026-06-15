@@ -37,7 +37,7 @@ class TrendFollowingStrategy:
         self.context_provider = context_provider or NeutralContextProvider()
         self.style = config.style.strip().lower()
         self._prepared_ta: dict[str, dict[str, object]] = {}
-        if self.style not in {"sma_breakout", "ema_adx_macd", "rsi_mean_reversion"}:
+        if self.style not in {"sma_breakout", "ema_adx_macd", "ema_adx_donchian", "rsi_mean_reversion"}:
             raise ValueError(f"Unsupported strategy style: {config.style}")
         self.schedule_timezone = ZoneInfo(config.schedule_timezone)
         self.allowed_symbols = {
@@ -52,7 +52,7 @@ class TrendFollowingStrategy:
         }
 
     def prepare_history(self, instrument: Instrument, candles: list[Candle]) -> None:
-        if self.style != "ema_adx_macd" or not candles:
+        if self.style not in {"ema_adx_macd", "ema_adx_donchian"} or not candles:
             return
         features = self._compute_ta_feature_series(candles)
         timestamps = [candle.timestamp for candle in candles]
@@ -117,6 +117,13 @@ class TrendFollowingStrategy:
                 self.config.adx_window * 3,
                 self.config.rsi_window + 2,
                 self.config.macd_slow + self.config.macd_signal + 5,
+            )
+            required = max(required, ta_bars)
+        elif self.style == "ema_adx_donchian":
+            ta_bars = max(
+                self.config.adx_window * 3,
+                self.config.rsi_window + 2,
+                self.config.breakout_window + 2,
             )
             required = max(required, ta_bars)
         return required
@@ -265,6 +272,64 @@ class TrendFollowingStrategy:
                 )
             return None
 
+        if self.style == "ema_adx_donchian":
+            ta_features = self._resolved_ta_features(instrument, candles)
+            if ta_features is None:
+                return None
+            fast = ta_features["ema_fast"]
+            slow = ta_features["ema_slow"]
+            trend_strength = abs(fast - slow) / abs(slow) if slow else 0.0
+            if trend_strength < self.config.min_trend_strength:
+                return None
+            if (
+                fast > slow
+                and ta_features["adx"] >= self.config.adx_min
+                and ta_features["dmp"] > ta_features["dmn"]
+                and self.config.rsi_long_min <= ta_features["rsi"] <= self.config.rsi_long_max
+                and last.close >= ta_features["donchian_upper"]
+                and last.close >= fast
+            ):
+                return self._build_signal(
+                    instrument=instrument,
+                    direction=SignalDirection.LONG,
+                    last=last,
+                    atr_value=atr_value,
+                    context_score=context_score,
+                    trend_strength=trend_strength,
+                    turnover=turnover,
+                    volatility=volatility,
+                    extra_reason=(
+                        f"donchian-up ema_fast={fast:.2f} ema_slow={slow:.2f} "
+                        f"upper={ta_features['donchian_upper']:.2f} adx={ta_features['adx']:.2f} "
+                        f"rsi={ta_features['rsi']:.2f} dmi=({ta_features['dmp']:.2f}/{ta_features['dmn']:.2f})"
+                    ),
+                )
+            if (
+                self.config.allow_shorts
+                and fast < slow
+                and ta_features["adx"] >= self.config.adx_min
+                and ta_features["dmn"] > ta_features["dmp"]
+                and self.config.rsi_short_min <= ta_features["rsi"] <= self.config.rsi_short_max
+                and last.close <= ta_features["donchian_lower"]
+                and last.close <= fast
+            ):
+                return self._build_signal(
+                    instrument=instrument,
+                    direction=SignalDirection.SHORT,
+                    last=last,
+                    atr_value=atr_value,
+                    context_score=context_score,
+                    trend_strength=trend_strength,
+                    turnover=turnover,
+                    volatility=volatility,
+                    extra_reason=(
+                        f"donchian-down ema_fast={fast:.2f} ema_slow={slow:.2f} "
+                        f"lower={ta_features['donchian_lower']:.2f} adx={ta_features['adx']:.2f} "
+                        f"rsi={ta_features['rsi']:.2f} dmi=({ta_features['dmp']:.2f}/{ta_features['dmn']:.2f})"
+                    ),
+                )
+            return None
+
         if fast > slow and breakout_long:
             return self._build_signal(
                 instrument=instrument,
@@ -404,20 +469,39 @@ class TrendFollowingStrategy:
         ema_fast = ta.ema(frame["close"], length=self.config.fast_window)
         ema_slow = ta.ema(frame["close"], length=self.config.slow_window)
         rsi = ta.rsi(frame["close"], length=self.config.rsi_window)
-        macd = ta.macd(
-            frame["close"],
-            fast=self.config.macd_fast,
-            slow=self.config.macd_slow,
-            signal=self.config.macd_signal,
-        )
         adx = ta.adx(
             frame["high"],
             frame["low"],
             frame["close"],
             length=self.config.adx_window,
         )
-        if macd is None or adx is None:
+        if adx is None:
             return [None for _ in candles]
+
+        macd = None
+        donchian = None
+        if self.style == "ema_adx_macd":
+            macd = ta.macd(
+                frame["close"],
+                fast=self.config.macd_fast,
+                slow=self.config.macd_slow,
+                signal=self.config.macd_signal,
+            )
+            if macd is None:
+                return [None for _ in candles]
+        elif self.style == "ema_adx_donchian":
+            donchian = ta.donchian(
+                frame["high"],
+                frame["low"],
+                lower_length=self.config.breakout_window,
+                upper_length=self.config.breakout_window,
+            )
+            if donchian is None:
+                return [None for _ in candles]
+            lower_col = next((col for col in donchian.columns if "DCL_" in col), donchian.columns[0])
+            upper_col = next((col for col in donchian.columns if "DCU_" in col), donchian.columns[-1])
+            donchian_lower = donchian[lower_col].shift(1)
+            donchian_upper = donchian[upper_col].shift(1)
 
         series: list[dict[str, float] | None] = []
         for index in range(len(candles)):
@@ -425,13 +509,25 @@ class TrendFollowingStrategy:
                 "ema_fast": float(ema_fast.iloc[index]) if ema_fast is not None else math.nan,
                 "ema_slow": float(ema_slow.iloc[index]) if ema_slow is not None else math.nan,
                 "rsi": float(rsi.iloc[index]) if rsi is not None else math.nan,
-                "macd": float(macd.iloc[index, 0]),
-                "macd_hist": float(macd.iloc[index, 1]),
-                "macd_signal": float(macd.iloc[index, 2]),
                 "adx": float(adx.iloc[index, 0]),
                 "dmp": float(adx.iloc[index, 1]),
                 "dmn": float(adx.iloc[index, 2]),
             }
+            if self.style == "ema_adx_macd" and macd is not None:
+                values.update(
+                    {
+                        "macd": float(macd.iloc[index, 0]),
+                        "macd_hist": float(macd.iloc[index, 1]),
+                        "macd_signal": float(macd.iloc[index, 2]),
+                    }
+                )
+            elif self.style == "ema_adx_donchian" and donchian is not None:
+                values.update(
+                    {
+                        "donchian_lower": float(donchian_lower.iloc[index]),
+                        "donchian_upper": float(donchian_upper.iloc[index]),
+                    }
+                )
             if any(math.isnan(value) for value in values.values()):
                 series.append(None)
                 continue

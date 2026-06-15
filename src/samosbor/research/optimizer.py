@@ -103,7 +103,7 @@ class ParameterOptimizer:
                     )
                     adx_values = (
                         self.research.adx_min_values
-                        if normalized_style == "ema_adx_macd"
+                        if normalized_style in {"ema_adx_macd", "ema_adx_donchian"}
                         else [self.base_strategy.adx_min]
                     )
                     rsi_long_max_values = (

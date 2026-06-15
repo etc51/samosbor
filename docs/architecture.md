@@ -85,7 +85,8 @@
 Дополнительный TA-режим:
 
 - стиль `ema_adx_macd` включает `EMA`, `ADX`, `RSI` и `MACD` через `pandas-ta`
-- стиль `rsi_mean_reversion` ищет возврат цены к SMA после RSI-экстремумов и даёт системе отдельную контртрендовую ветку
+- стиль `ema_adx_donchian` использует `EMA`, `ADX`, `RSI` и Donchian-каналы через `pandas-ta` для более жёсткого breakout-following по акциям
+- стиль `rsi_mean_reversion` ищет возврат цены к SMA после RSI-экстремумов и остаётся отдельной контртрендовой веткой для более широкого autonomous search
 - `require_breakout` позволяет оставить жёсткий пробойный фильтр или отключить его для более раннего входа
 - optimizer/walk-forward теперь могут перебирать не только `style`, но и пороги `rsi_long_max` / `rsi_short_min` для mean-reversion
 - стиль выбирается через `strategy.style` в TOML-конфиге
@@ -167,7 +168,7 @@
 - Monte Carlo по наблюдаемым месячным доходностям
 - rolling walk-forward validation с переоптимизацией на train-окне и OOS-проверкой на test-окне
 - отдельные research-конфиги под локальный parquet-архив на `D:`
-- перебор `strategy_styles`, `require_breakout_values` и `adx_min_values` для TA-ветки
+- перебор `strategy_styles`, `require_breakout_values` и `adx_min_values` для TA-ветки; широкий stock research теперь держит `ema_adx_macd`, `ema_adx_donchian` и `rsi_mean_reversion`, а focused nightly runtime сравнивает два более быстрых trend-style
 
 CLI:
 
