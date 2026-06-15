@@ -202,6 +202,7 @@ CLI-сценарии:
 - [configs/server_tbank_cnyrubf_premium.toml](/D:/projects/samosbor/configs/server_tbank_cnyrubf_premium.toml)
 - [scripts/server](/D:/projects/samosbor/scripts/server)
 - [deploy/systemd](/D:/projects/samosbor/deploy/systemd)
+- [src/samosbor/dashboard.py](/D:/projects/samosbor/src/samosbor/dashboard.py)
 
 Текущая серверная схема:
 
@@ -222,6 +223,7 @@ CLI-сценарии:
 - тот же daily-review timer запускает walk-forward-based `tune-strategy`, который предлагает только candidate patch и не меняет боевой TOML сам
 - daily-review также запускает `tune-exits`, который крутит только `atr_stop_multiple` и `reward_to_risk` на том же OOS-окне и тоже пишет лишь candidate patch
 - entry schedule дополнительно фильтруется на уровне стратегии через `allowed_entry_hours` по `Europe/Moscow`
+- отдельный `samosbor-dashboard.service` читает `state/` и `runs/` и показывает именно этот paper-runtime на своём порту, отдельно от legacy `3pips` dashboards
 
 ## Дальнейшее развитие
 
@@ -231,6 +233,5 @@ CLI-сценарии:
 - news/fundamental ingestion через отдельные adapters
 - подбор параметров и walk-forward validation
 - Monte-Carlo и stress testing
-- dashboard/monitoring
 - feature store и ML-модели поверх базовой стратегии
 - интеграция официальной T-Bank Premium margin-стоимости переноса в paper broker и backtest

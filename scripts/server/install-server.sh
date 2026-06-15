@@ -9,8 +9,10 @@ sudo install -m 0644 "$ROOT_DIR/deploy/systemd/samosbor-daily-review.service" /e
 sudo install -m 0644 "$ROOT_DIR/deploy/systemd/samosbor-daily-review.timer" /etc/systemd/system/samosbor-daily-review.timer
 sudo install -m 0644 "$ROOT_DIR/deploy/systemd/samosbor-updater.service" /etc/systemd/system/samosbor-updater.service
 sudo install -m 0644 "$ROOT_DIR/deploy/systemd/samosbor-updater.timer" /etc/systemd/system/samosbor-updater.timer
+sudo install -m 0644 "$ROOT_DIR/deploy/systemd/samosbor-dashboard.service" /etc/systemd/system/samosbor-dashboard.service
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now samosbor-paper-cycle.timer
 sudo systemctl enable --now samosbor-daily-review.timer
 sudo systemctl enable --now samosbor-updater.timer
+sudo systemctl enable --now samosbor-dashboard.service

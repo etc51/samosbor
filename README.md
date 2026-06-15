@@ -142,6 +142,12 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.effective.toml nightly-autonomy --base-config configs/server_tbank_cnyrubf_premium.toml --effective-output configs/server_tbank_cnyrubf_premium.effective.toml
 ```
 
+Чтобы локально поднять отдельный `samosbor` dashboard именно для этого paper-runtime:
+
+```powershell
+.\.venv\Scripts\python -m samosbor.dashboard --config configs/server_tbank_cnyrubf_premium.toml --effective-config configs/server_tbank_cnyrubf_premium.effective.toml --host 127.0.0.1 --port 8790
+```
+
 ## Server Runtime
 
 Для 24/7 серверного paper-режима подготовлены:
@@ -149,6 +155,7 @@ SSL_TBANK_VERIFY=True
 - runtime-конфиг [configs/server_tbank_cnyrubf_premium.toml](/D:/projects/samosbor/configs/server_tbank_cnyrubf_premium.toml)
 - server scripts в [scripts/server](/D:/projects/samosbor/scripts/server)
 - systemd units в [deploy/systemd](/D:/projects/samosbor/deploy/systemd)
+- отдельный `samosbor-dashboard.service` для своей web-морды на порту `8790`
 
 Логика расписания:
 
@@ -160,6 +167,7 @@ SSL_TBANK_VERIFY=True
 
 - `samosbor-updater.timer` проверяет GitHub каждые `15` минут
 - при новом коммите делает `git pull --ff-only`, обновляет окружение и прогоняет unit tests
+- `samosbor-dashboard.service` показывает только текущий `samosbor` paper-runtime, active overrides, open positions и autonomy artifacts, не смешивая их с legacy dashboards на сервере
 - для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
 - `samosbor-daily-review.timer` после торговой сессии запускает единый `nightly-autonomy` цикл: daily analyze, entry restrictions, signal-feedback bootstrap, optimizer, walk-forward research, Monte Carlo, strategy/exit tuning и финальную пересборку effective config
 - daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/entry-symbols`, `runs/autotune/entry-quality`, `runs/autotune/strategy` и `runs/autotune/exits`
