@@ -211,6 +211,7 @@ CLI-сценарии:
 - перед каждым cycle server собирает `configs/server_tbank_cnyrubf_premium.effective.toml` из базового server TOML и последних autotune-артефактов, а затем торгует уже по этой производной конфигурации
 - отдельный daily-review timer собирает сводку по закрытым сделкам и строит candidate patch по `allowed_entry_hours`
 - отдельная команда `refresh-effective-config` собирает производный runtime TOML из последних autotune-артефактов, не трогая базовый config
+- для новых candidate changes effective-config дополнительно требует повторного подтверждения в нескольких подряд tuning artifacts, чтобы не дергать runtime по единичному noisy сигналу
 - тот же runtime теперь сохраняет `signal_strength` в paper state и closed trades, чтобы feedback loop мог работать по фактическим входам
 - paper-cycle также ведёт отдельный shadow signal feedback journal, где кандидатные сигналы получают outcome по последующим свечам даже если реальная позиция не открывалась
 - effective-config слой теперь дополнительно оценивает недавнее paper-окно и при явном ухудшении под активными overrides может автоматически откатиться к базовому server profile

@@ -20,6 +20,7 @@ _STRATEGY_OVERRIDE_ORDER = [
     "adx_min",
     "allowed_entry_hours",
 ]
+_REQUIRED_CONFIRMATIONS = 2
 
 
 def default_effective_config_path(config_path: str | Path) -> Path:
@@ -60,31 +61,43 @@ def build_effective_strategy_overrides(
     return overrides
 
 
-def summarize_effective_config_sources(autotune_dir: Path) -> list[dict[str, object]]:
+def summarize_effective_config_sources(
+    autotune_dir: Path,
+    *,
+    required_confirmations: int = _REQUIRED_CONFIRMATIONS,
+) -> list[dict[str, object]]:
     return [
         _build_source_summary(
             autotune_dir=autotune_dir,
             source_name="strategy",
             json_name="strategy_tuning.json",
-            value_builder=_strategy_values,
+            current_value_builder=_strategy_current_values,
+            candidate_value_builder=_strategy_candidate_values,
+            required_confirmations=required_confirmations,
         ),
         _build_source_summary(
             autotune_dir=autotune_dir,
             source_name="exits",
             json_name="exit_tuning.json",
-            value_builder=_exit_values,
+            current_value_builder=_exit_current_values,
+            candidate_value_builder=_exit_candidate_values,
+            required_confirmations=required_confirmations,
         ),
         _build_source_summary(
             autotune_dir=autotune_dir,
             source_name="entry-schedule",
             json_name="schedule_tuning.json",
-            value_builder=_entry_schedule_values,
+            current_value_builder=_entry_schedule_current_values,
+            candidate_value_builder=_entry_schedule_candidate_values,
+            required_confirmations=required_confirmations,
         ),
         _build_source_summary(
             autotune_dir=autotune_dir,
             source_name="entry-quality",
             json_name="entry_quality_tuning.json",
-            value_builder=_entry_quality_values,
+            current_value_builder=_entry_quality_current_values,
+            candidate_value_builder=_entry_quality_candidate_values,
+            required_confirmations=required_confirmations,
         ),
     ]
 
@@ -185,39 +198,155 @@ def _build_source_summary(
     autotune_dir: Path,
     source_name: str,
     json_name: str,
-    value_builder,
+    current_value_builder,
+    candidate_value_builder,
+    required_confirmations: int,
 ) -> dict[str, object]:
-    payload_path = _latest_payload_path(autotune_dir / source_name, json_name)
+    payload_paths = _payload_history_paths(autotune_dir / source_name, json_name)
+    payload_path = payload_paths[-1] if payload_paths else None
     if payload_path is None:
         return {
             "source": source_name,
             "artifact_path": "",
             "changed": False,
+            "current_values": {},
+            "candidate_values": {},
             "selected_values": {},
             "reason": "no tuning artifacts found",
+            "activation": {
+                "required_confirmations": required_confirmations,
+                "confirmation_count": 0,
+                "confirmed": False,
+                "pending_activation": False,
+                "reason": "no tuning artifacts found",
+            },
         }
 
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    changed = bool(payload.get("changed", False))
+    current_values = current_value_builder(payload)
+    candidate_values = candidate_value_builder(payload)
+    activation = {
+        "required_confirmations": required_confirmations,
+        "confirmation_count": 0,
+        "confirmed": False,
+        "pending_activation": False,
+        "reason": "latest tuning run keeps current runtime values",
+    }
+    selected_values = current_values
+
+    if changed and candidate_values:
+        confirmation_count = _candidate_confirmation_count(
+            payload_paths,
+            candidate_value_builder=candidate_value_builder,
+            target_values=candidate_values,
+        )
+        confirmed = confirmation_count >= max(1, required_confirmations)
+        activation = {
+            "required_confirmations": required_confirmations,
+            "confirmation_count": confirmation_count,
+            "confirmed": confirmed,
+            "pending_activation": not confirmed,
+            "reason": (
+                f"candidate confirmed across {confirmation_count} consecutive tuning runs"
+                if confirmed
+                else f"candidate is waiting for {required_confirmations} consecutive confirmations"
+            ),
+        }
+        selected_values = candidate_values if confirmed else current_values
+
     return {
         "source": source_name,
         "artifact_path": str(payload_path),
-        "changed": bool(payload.get("changed", False)),
-        "selected_values": value_builder(payload),
+        "changed": changed,
+        "current_values": current_values,
+        "candidate_values": candidate_values,
+        "selected_values": selected_values,
         "reason": str(payload.get("reason", "latest tuning payload loaded")),
+        "activation": activation,
     }
 
 
-def _latest_payload_path(source_dir: Path, json_name: str) -> Path | None:
+def _payload_history_paths(source_dir: Path, json_name: str) -> list[Path]:
     if not source_dir.exists():
-        return None
-    candidates = [
-        path / json_name
-        for path in source_dir.iterdir()
-        if path.is_dir() and (path / json_name).exists()
-    ]
-    if not candidates:
-        return None
-    return max(candidates, key=lambda path: path.parent.name)
+        return []
+    return sorted(
+        [
+            path / json_name
+            for path in source_dir.iterdir()
+            if path.is_dir() and (path / json_name).exists()
+        ],
+        key=lambda path: path.parent.name,
+    )
+
+
+def _candidate_confirmation_count(
+    payload_paths: list[Path],
+    *,
+    candidate_value_builder,
+    target_values: dict[str, object],
+) -> int:
+    count = 0
+    for payload_path in reversed(payload_paths):
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+        if not payload.get("changed", False):
+            break
+        if candidate_value_builder(payload) != target_values:
+            break
+        count += 1
+    return count
+
+
+def _strategy_current_values(payload: dict[str, object]) -> dict[str, object]:
+    source = payload.get("current_strategy", {})
+    return {
+        key: source[key]
+        for key in ("style", "fast_window", "slow_window", "require_breakout", "min_trend_strength", "adx_min")
+        if key in source
+    }
+
+
+def _strategy_candidate_values(payload: dict[str, object]) -> dict[str, object]:
+    source = payload.get("candidate_strategy", {})
+    return {
+        key: source[key]
+        for key in ("style", "fast_window", "slow_window", "require_breakout", "min_trend_strength", "adx_min")
+        if key in source
+    }
+
+
+def _exit_current_values(payload: dict[str, object]) -> dict[str, object]:
+    source = payload.get("current_exit_settings", {})
+    return {
+        key: source[key]
+        for key in ("atr_stop_multiple", "reward_to_risk")
+        if key in source
+    }
+
+
+def _exit_candidate_values(payload: dict[str, object]) -> dict[str, object]:
+    source = payload.get("candidate_exit_settings", {})
+    return {
+        key: source[key]
+        for key in ("atr_stop_multiple", "reward_to_risk")
+        if key in source
+    }
+
+
+def _entry_schedule_current_values(payload: dict[str, object]) -> dict[str, object]:
+    return {"allowed_entry_hours": [int(value) for value in payload.get("current_hours", [])]}
+
+
+def _entry_schedule_candidate_values(payload: dict[str, object]) -> dict[str, object]:
+    return {"allowed_entry_hours": [int(value) for value in payload.get("proposed_hours", [])]}
+
+
+def _entry_quality_current_values(payload: dict[str, object]) -> dict[str, object]:
+    return {"min_signal_strength": float(payload.get("current_min_signal_strength", 0.0))}
+
+
+def _entry_quality_candidate_values(payload: dict[str, object]) -> dict[str, object]:
+    return {"min_signal_strength": float(payload.get("recommended_min_signal_strength", 0.0))}
 
 
 def _strategy_values(payload: dict[str, object]) -> dict[str, object]:
