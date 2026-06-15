@@ -14,6 +14,7 @@ class FakeNightlyOrchestrator(TradingOrchestrator):
         super().__init__(config)
         self.calls: list[str] = []
         self.walk_forward_adaptive_history: bool | None = None
+        self.strategy_tuning_used_walk_forward_payload = False
 
     def run_paper_report(self, *, days=1, report_date=None, timezone_name=None):
         self.calls.append("paper-report")
@@ -190,8 +191,10 @@ class FakeNightlyOrchestrator(TradingOrchestrator):
         min_monthly_improvement_pct=0.05,
         max_extra_drawdown_pct=1.0,
         min_positive_fold_probability_pct=55.0,
+        walk_forward_payload=None,
     ):
         self.calls.append("tune-strategy")
+        self.strategy_tuning_used_walk_forward_payload = walk_forward_payload is not None
         return {
             "changed": False,
             "reason": "candidate failed one or more safety guardrails",
@@ -438,8 +441,11 @@ class CachingNightlyOrchestrator(TradingOrchestrator):
         min_monthly_improvement_pct=0.05,
         max_extra_drawdown_pct=1.0,
         min_positive_fold_probability_pct=55.0,
+        walk_forward_payload=None,
     ):
-        self._touch_market_bundle("tune-strategy")
+        self.calls.append("tune-strategy")
+        if walk_forward_payload is None:
+            self._touch_market_bundle("tune-strategy-walk-forward")
         return {
             "changed": False,
             "reason": "no change",
@@ -569,6 +575,7 @@ class NightlyAutonomyTest(unittest.TestCase):
             self.assertEqual(result["runtime"]["universe_selection"]["proposed_effective_symbols"], ["CNYRUBF"])
             self.assertFalse(result["runtime"]["effective_config"]["rollback_guardrail"]["rollback_to_base"])
             self.assertTrue(orchestrator.walk_forward_adaptive_history)
+            self.assertTrue(orchestrator.strategy_tuning_used_walk_forward_payload)
             summary_dir = Path(result["output_dir"])
             self.assertTrue((summary_dir / "nightly_autonomy.json").exists())
             self.assertTrue((summary_dir / "summary.md").exists())

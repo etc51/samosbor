@@ -319,6 +319,7 @@ class TradingOrchestrator:
         min_monthly_improvement_pct: float = 0.05,
         max_extra_drawdown_pct: float = 1.0,
         min_positive_fold_probability_pct: float = 55.0,
+        walk_forward_payload: dict[str, object] | None = None,
     ) -> dict[str, object]:
         assert_paper_only_mode(
             self.config.execution.mode,
@@ -346,16 +347,19 @@ class TradingOrchestrator:
             payload["output_dir"] = str(output_dir)
             return payload
 
-        validator = WalkForwardValidator(
-            base_strategy=self.config.strategy,
-            risk=self.config.risk,
-            backtest=self.config.backtest,
-            research=tuned_research,
-            timeframe=self.config.data.timeframe,
-            slippage_bps=self.config.execution.slippage_bps,
-            commission_bps=self.config.execution.commission_bps,
-        )
-        walk_forward = validator.run(candles_by_symbol, instruments_by_symbol)
+        walk_forward = walk_forward_payload
+        if walk_forward is None:
+            validator = WalkForwardValidator(
+                base_strategy=self.config.strategy,
+                risk=self.config.risk,
+                backtest=self.config.backtest,
+                research=tuned_research,
+                timeframe=self.config.data.timeframe,
+                slippage_bps=self.config.execution.slippage_bps,
+                commission_bps=self.config.execution.commission_bps,
+            )
+            walk_forward = validator.run(candles_by_symbol, instruments_by_symbol)
+        research_window = walk_forward.get("research_window", research_window)
         latest_fold = walk_forward["folds"][-1]
 
         optimizer = ParameterOptimizer(
@@ -830,7 +834,7 @@ class TradingOrchestrator:
                 walk_forward_payload=walk_forward,
             )
             monte_carlo = self.run_monte_carlo()
-            strategy_tuning = self.tune_strategy()
+            strategy_tuning = self.tune_strategy(walk_forward_payload=walk_forward)
             exit_tuning = self.tune_exits()
             effective_config_result = self.refresh_effective_config(
                 source_config_path=base_config,
