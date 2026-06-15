@@ -184,6 +184,32 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.05,
         help="Step used to test candidate signal-strength thresholds",
     )
+    tune_universe_parser = subparsers.add_parser(
+        "tune-universe",
+        help="Recommend an active runtime symbol subset from optimizer and walk-forward consensus",
+    )
+    tune_universe_parser.add_argument(
+        "--max-allowed-symbols",
+        type=int,
+        help="Maximum number of active symbols to keep in the runtime universe",
+    )
+    tune_universe_parser.add_argument(
+        "--min-walk-forward-positive-probability-pct",
+        type=float,
+        default=55.0,
+        help="Minimum walk-forward positive-fold probability required before changing the active universe",
+    )
+    tune_universe_parser.add_argument(
+        "--min-latest-fold-monthly-return-pct",
+        type=float,
+        default=0.0,
+        help="Minimum normalized monthly return required on the latest walk-forward fold",
+    )
+    tune_universe_parser.add_argument(
+        "--skip-optimizer-overlap",
+        action="store_true",
+        help="Allow the latest walk-forward winner to drive the universe even without optimizer overlap",
+    )
     tune_strategy_parser = subparsers.add_parser(
         "tune-strategy",
         help="Recommend safer strategy parameters from recent walk-forward results",
@@ -357,6 +383,20 @@ def main(argv: list[str] | None = None) -> int:
                     min_trade_retention_ratio=args.min_trade_retention_ratio,
                     min_expectancy_improvement_rub=args.min_expectancy_improvement_rub,
                     bucket_step=args.bucket_step,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "tune-universe":
+        print(
+            json.dumps(
+                orchestrator.tune_runtime_universe(
+                    max_allowed_symbols=args.max_allowed_symbols,
+                    min_walk_forward_positive_probability_pct=args.min_walk_forward_positive_probability_pct,
+                    min_latest_fold_monthly_return_pct=args.min_latest_fold_monthly_return_pct,
+                    require_optimizer_overlap=not args.skip_optimizer_overlap,
                 ),
                 ensure_ascii=False,
                 indent=2,

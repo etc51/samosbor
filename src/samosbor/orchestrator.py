@@ -46,6 +46,10 @@ from .autonomy.strategy_tuning import (
     build_strategy_tuning_payload,
     write_strategy_tuning,
 )
+from .autonomy.universe_selection import (
+    build_universe_selection_tuning_payload,
+    write_universe_selection_tuning,
+)
 from .config import AppConfig
 from .config import StrategySection
 from .data.csv_provider import CSVMarketDataProvider
@@ -599,6 +603,43 @@ class TradingOrchestrator:
         payload["output_dir"] = str(output_dir)
         return payload
 
+    def tune_runtime_universe(
+        self,
+        *,
+        optimizer_payload: dict[str, object] | None = None,
+        walk_forward_payload: dict[str, object] | None = None,
+        max_allowed_symbols: int | None = None,
+        min_walk_forward_positive_probability_pct: float = 55.0,
+        min_latest_fold_monthly_return_pct: float = 0.0,
+        require_optimizer_overlap: bool = True,
+    ) -> dict[str, object]:
+        assert_paper_only_mode(
+            self.config.execution.mode,
+            allow_live_trading=self.config.execution.allow_live_trading,
+            live_flag=False,
+        )
+        optimizer = optimizer_payload or self.optimize_strategy()
+        walk_forward = walk_forward_payload or self.run_walk_forward(adaptive_history=True)
+        allowed_cap = max_allowed_symbols or max(
+            1,
+            min(self.config.risk.max_positions, self.config.research.subset_max_size),
+        )
+        payload = build_universe_selection_tuning_payload(
+            configured_symbols=[instrument.symbol for instrument in self.config.data.instruments],
+            current_allowed_symbols=self.config.strategy.allowed_symbols,
+            optimizer_payload=optimizer,
+            walk_forward_payload=walk_forward,
+            max_allowed_symbols=allowed_cap,
+            min_walk_forward_positive_probability_pct=min_walk_forward_positive_probability_pct,
+            min_latest_fold_monthly_return_pct=min_latest_fold_monthly_return_pct,
+            require_optimizer_overlap=require_optimizer_overlap,
+        )
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "universe-selection" / stamp
+        write_universe_selection_tuning(output_dir, payload)
+        payload["output_dir"] = str(output_dir)
+        return payload
+
     def bootstrap_entry_feedback(
         self,
         *,
@@ -618,6 +659,7 @@ class TradingOrchestrator:
             replace(
                 self.config.strategy,
                 min_signal_strength=0.0,
+                allowed_symbols=[],
                 blocked_symbols=[],
                 blocked_long_symbols=[],
                 blocked_short_symbols=[],
@@ -751,6 +793,10 @@ class TradingOrchestrator:
         )
         optimizer = self.optimize_strategy()
         walk_forward = self.run_walk_forward(adaptive_history=True)
+        runtime_universe = self.tune_runtime_universe(
+            optimizer_payload=optimizer,
+            walk_forward_payload=walk_forward,
+        )
         monte_carlo = self.run_monte_carlo()
         strategy_tuning = self.tune_strategy()
         exit_tuning = self.tune_exits()
@@ -774,6 +820,7 @@ class TradingOrchestrator:
                 "tune-entry-quality",
                 "optimize",
                 "walk-forward",
+                "tune-universe",
                 "monte-carlo",
                 "tune-strategy",
                 "tune-exits",
@@ -798,6 +845,7 @@ class TradingOrchestrator:
                 "exits": _exit_tuning_view(exit_tuning),
             },
             "runtime": {
+                "universe_selection": _runtime_universe_view(runtime_universe),
                 "effective_config": _effective_config_view(effective_config_result),
             },
         }
@@ -828,6 +876,7 @@ class TradingOrchestrator:
             replace(
                 self.config.strategy,
                 min_signal_strength=0.0,
+                allowed_symbols=[],
                 blocked_symbols=[],
                 blocked_long_symbols=[],
                 blocked_short_symbols=[],
@@ -1125,6 +1174,21 @@ def _feedback_bootstrap_view(payload: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _runtime_universe_view(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "changed": payload.get("changed", False),
+        "reason": payload.get("reason", ""),
+        "configured_symbols": payload.get("configured_symbols", []),
+        "current_allowed_symbols": payload.get("current_allowed_symbols", []),
+        "proposed_allowed_symbols": payload.get("proposed_allowed_symbols", []),
+        "proposed_effective_symbols": payload.get("proposed_effective_symbols", []),
+        "optimizer_best_symbols": payload.get("optimizer_best_symbols", []),
+        "walk_forward_latest_symbols": payload.get("walk_forward_latest_symbols", []),
+        "consensus_symbols": payload.get("consensus_symbols", []),
+    }
+
+
 def _optimizer_view(payload: dict[str, object]) -> dict[str, object]:
     best = payload.get("best_candidate") or {}
     summary = best.get("summary", {}) if isinstance(best, dict) else {}
@@ -1212,6 +1276,7 @@ def _render_nightly_autonomy_markdown(payload: dict[str, object]) -> str:
     restrictions = payload["restrictions"]
     research = payload["research"]
     tuning = payload["tuning"]
+    universe = payload["runtime"]["universe_selection"]
     runtime = payload["runtime"]["effective_config"]
     lines = [
         "# Nightly Autonomy",
@@ -1242,6 +1307,8 @@ def _render_nightly_autonomy_markdown(payload: dict[str, object]) -> str:
         f"- Exit candidate accepted: {tuning['exits']['changed']}",
         "",
         "## Runtime",
+        f"- Universe changed: {universe['changed']} ({universe['reason']})",
+        f"- Proposed effective symbols: {universe['proposed_effective_symbols']}",
         f"- Rollback guardrail: {runtime['rollback_guardrail'].get('rollback_to_base', False)} ({runtime['rollback_guardrail'].get('reason', '')})",
         f"- Active override keys: {sorted(runtime['applied_strategy_overrides'])}",
         "",

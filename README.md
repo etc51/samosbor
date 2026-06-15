@@ -169,7 +169,7 @@ SSL_TBANK_VERIFY=True
 - при новом коммите делает `git pull --ff-only`, обновляет окружение, прогоняет unit tests и затем сам синхронизирует `systemd` units через `scripts/server/install-server.sh`
 - `samosbor-dashboard.service` показывает только текущий `samosbor` paper-runtime, active overrides, open positions и autonomy artifacts, не смешивая их с legacy dashboards на сервере
 - для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
-- `samosbor-daily-review.timer` после торговой сессии запускает единый `nightly-autonomy` цикл: daily analyze, entry restrictions, signal-feedback bootstrap, optimizer, walk-forward research, Monte Carlo, strategy/exit tuning и финальную пересборку effective config
+- `samosbor-daily-review.timer` после торговой сессии запускает единый `nightly-autonomy` цикл: daily analyze, entry restrictions, signal-feedback bootstrap, optimizer, walk-forward research, active-universe selection, Monte Carlo, strategy/exit tuning и финальную пересборку effective config
 - daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/entry-symbols`, `runs/autotune/entry-quality`, `runs/autotune/strategy` и `runs/autotune/exits`
 - тот же nightly cycle теперь дополнительно пишет агрегированный summary в `runs/autotune/nightly-autonomy`
 - `paper-cycle` теперь работает через производный `configs/server_tbank_cnyrubf_premium.effective.toml`, который каждый раз пересобирается именно из базового server TOML плюс последних autotune-артефактов и сохраняет `local-paper` / `allow_live_trading = false`
@@ -187,6 +187,7 @@ SSL_TBANK_VERIFY=True
 - `tune-entry-quality` сначала пытается учиться на resolved signal feedback, а если его ещё нет, честно откатывается к обычным closed trades
 - `bootstrap-entry-feedback` позволяет безопасно прогреть этот journal на исторических свечах без отправки ордеров и без вмешательства в paper-позиции
 - `tune-entry-symbols` теперь умеет не только полностью блокировать слабый тикер, но и отдельно добавлять `blocked_long_symbols` / `blocked_short_symbols`, если слабым оказался только один direction
+- `tune-universe` теперь умеет сужать активный runtime-universe через `allowed_symbols`, если optimizer и последний walk-forward fold сходятся на более сильном поднаборе символов
 - `refresh-effective-config` собирает следующую runtime-конфигурацию из последних entry/exit/strategy/schedule autotune результатов, не переписывая базовый серверный TOML
 - новые strategy/exit/entry candidate changes теперь не применяются по одному сигналу: effective-config ждет как минимум `2` подряд подтверждающих daily-review артефакта, прежде чем включить их в active paper runtime
 - тот же `refresh-effective-config` теперь пишет `rollback_guardrail` и при активных autotune-overrides может автоматически вернуться к базовому runtime-профилю, если недавнее paper-окно стало отрицательным или сработал drawdown halt

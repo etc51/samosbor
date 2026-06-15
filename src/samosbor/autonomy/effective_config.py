@@ -19,6 +19,7 @@ _STRATEGY_OVERRIDE_ORDER = [
     "min_trend_strength",
     "adx_min",
     "allowed_entry_hours",
+    "allowed_symbols",
     "blocked_symbols",
     "blocked_long_symbols",
     "blocked_short_symbols",
@@ -46,6 +47,7 @@ def base_strategy_values(config: AppConfig) -> dict[str, object]:
         "min_trend_strength": config.strategy.min_trend_strength,
         "adx_min": config.strategy.adx_min,
         "allowed_entry_hours": list(config.strategy.allowed_entry_hours),
+        "allowed_symbols": list(config.strategy.allowed_symbols),
         "blocked_symbols": list(config.strategy.blocked_symbols),
         "blocked_long_symbols": list(config.strategy.blocked_long_symbols),
         "blocked_short_symbols": list(config.strategy.blocked_short_symbols),
@@ -103,6 +105,14 @@ def summarize_effective_config_sources(
             json_name="entry_quality_tuning.json",
             current_value_builder=_entry_quality_current_values,
             candidate_value_builder=_entry_quality_candidate_values,
+            required_confirmations=required_confirmations,
+        ),
+        _build_source_summary(
+            autotune_dir=autotune_dir,
+            source_name="universe-selection",
+            json_name="universe_selection.json",
+            current_value_builder=_universe_selection_current_values,
+            candidate_value_builder=_universe_selection_candidate_values,
             required_confirmations=required_confirmations,
         ),
         _build_source_summary(
@@ -373,6 +383,22 @@ def _entry_symbols_current_values(payload: dict[str, object]) -> dict[str, objec
         ],
         "blocked_short_symbols": [
             str(value).strip().upper() for value in payload.get("current_blocked_short_symbols", [])
+        ],
+    }
+
+
+def _universe_selection_current_values(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "allowed_symbols": [
+            str(value).strip().upper() for value in payload.get("current_allowed_symbols", [])
+        ],
+    }
+
+
+def _universe_selection_candidate_values(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "allowed_symbols": [
+            str(value).strip().upper() for value in payload.get("proposed_allowed_symbols", [])
         ],
     }
 

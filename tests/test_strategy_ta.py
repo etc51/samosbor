@@ -254,6 +254,28 @@ class TrendFollowingTATest(unittest.TestCase):
             "entry blocked by short restriction (CNYRUBF)",
         )
 
+    def test_allowed_symbols_can_limit_runtime_universe(self):
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                allowed_symbols=["USDRUBF"],
+                allowed_entry_hours=[12],
+                allowed_entry_weekdays=[2],
+                schedule_timezone="Europe/Moscow",
+            ),
+            timeframe="hour",
+        )
+
+        allowed_timestamp = datetime(2025, 1, 1, 9, 0, tzinfo=timezone.utc)
+
+        self.assertEqual(
+            strategy.entry_block_reason_for_instrument(
+                self.instrument,
+                allowed_timestamp,
+                SignalDirection.LONG,
+            ),
+            "entry blocked by allowed universe restriction (CNYRUBF)",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

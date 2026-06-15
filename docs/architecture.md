@@ -212,7 +212,7 @@ CLI-сценарии:
 - systemd timer вызывает `paper-cycle` каждый час в торговую сессию
 - перед каждым cycle server собирает `configs/server_tbank_cnyrubf_premium.effective.toml` из базового server TOML и последних autotune-артефактов, а затем торгует уже по этой производной конфигурации
 - отдельный daily-review timer теперь запускает единый `nightly-autonomy` pipeline
-- этот pipeline явно включает analyze (`paper-report`), restrictions (`tune-entry-hours`, `tune-entry-quality`, signal-feedback bootstrap), optimizer (`optimize`), research (`walk-forward`, `monte-carlo`), strategy/exit tuning и финальную пересборку effective config
+- этот pipeline явно включает analyze (`paper-report`), restrictions (`tune-entry-hours`, `tune-entry-quality`, signal-feedback bootstrap), optimizer (`optimize`), research (`walk-forward`, `monte-carlo`), active-universe selection (`tune-universe`), strategy/exit tuning и финальную пересборку effective config
 - отдельная команда `refresh-effective-config` собирает производный runtime TOML из последних autotune-артефактов, не трогая базовый config
 - для новых candidate changes effective-config дополнительно требует повторного подтверждения в нескольких подряд tuning artifacts, чтобы не дергать runtime по единичному noisy сигналу
 - тот же runtime теперь сохраняет `signal_strength` в paper state и closed trades, чтобы feedback loop мог работать по фактическим входам
@@ -222,6 +222,7 @@ CLI-сценарии:
 - daily-review также запускает `tune-entry-quality`, который анализирует последние закрытые paper-сделки и предлагает candidate patch по `min_signal_strength`
 - тот же daily-review timer запускает walk-forward-based `tune-strategy`, который предлагает только candidate patch и не меняет боевой TOML сам
 - daily-review также запускает `tune-exits`, который крутит только `atr_stop_multiple` и `reward_to_risk` на том же OOS-окне и тоже пишет лишь candidate patch
+- daily-review также может запускать `tune-universe`, который предлагает candidate patch по `allowed_symbols`, если optimizer и последний walk-forward fold подтверждают более сильный рабочий поднабор
 - entry schedule дополнительно фильтруется на уровне стратегии через `allowed_entry_hours` по `Europe/Moscow`
 - отдельный `samosbor-dashboard.service` читает `state/` и `runs/` и показывает именно этот paper-runtime на своём порту, отдельно от legacy `3pips` dashboards
 - `update-from-github.sh` после успешных тестов сам вызывает `install-server.sh`, поэтому новые `systemd` units и dashboard/service rollout теперь доходят до сервера автоматически

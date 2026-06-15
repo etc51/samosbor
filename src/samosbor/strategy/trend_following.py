@@ -40,6 +40,9 @@ class TrendFollowingStrategy:
         if self.style not in {"sma_breakout", "ema_adx_macd"}:
             raise ValueError(f"Unsupported strategy style: {config.style}")
         self.schedule_timezone = ZoneInfo(config.schedule_timezone)
+        self.allowed_symbols = {
+            symbol.strip().upper() for symbol in config.allowed_symbols if symbol.strip()
+        }
         self.blocked_symbols = {symbol.strip().upper() for symbol in config.blocked_symbols if symbol.strip()}
         self.blocked_long_symbols = {
             symbol.strip().upper() for symbol in config.blocked_long_symbols if symbol.strip()
@@ -92,6 +95,8 @@ class TrendFollowingStrategy:
         direction: SignalDirection | None = None,
     ) -> str | None:
         symbol = instrument.symbol.strip().upper()
+        if self.allowed_symbols and symbol not in self.allowed_symbols:
+            return f"entry blocked by allowed universe restriction ({instrument.symbol})"
         if symbol in self.blocked_symbols:
             return f"entry blocked by symbol restriction ({instrument.symbol})"
         if direction == SignalDirection.LONG and symbol in self.blocked_long_symbols:

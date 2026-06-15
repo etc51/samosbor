@@ -140,6 +140,39 @@ class FakeNightlyOrchestrator(TradingOrchestrator):
             "available_months": ["2026-01", "2026-02", "2026-03", "2026-04"],
             "skipped_folds": 0,
             "output_dir": "runs/walk-forward/fake",
+            "folds": [
+                {
+                    "best_candidate": {"symbols": ["CNYRUBF"]},
+                    "test_summary": {
+                        "normalized_monthly_return_pct": 0.8,
+                        "trades": 9,
+                    },
+                }
+            ],
+        }
+
+    def tune_runtime_universe(
+        self,
+        *,
+        optimizer_payload=None,
+        walk_forward_payload=None,
+        max_allowed_symbols=None,
+        min_walk_forward_positive_probability_pct=55.0,
+        min_latest_fold_monthly_return_pct=0.0,
+        require_optimizer_overlap=True,
+    ):
+        self.calls.append("tune-universe")
+        return {
+            "changed": True,
+            "reason": "runtime universe updated from optimizer and walk-forward consensus",
+            "configured_symbols": ["CNYRUBF", "USDRUBF"],
+            "current_allowed_symbols": [],
+            "proposed_allowed_symbols": ["CNYRUBF"],
+            "proposed_effective_symbols": ["CNYRUBF"],
+            "optimizer_best_symbols": ["CNYRUBF"],
+            "walk_forward_latest_symbols": ["CNYRUBF"],
+            "consensus_symbols": ["CNYRUBF"],
+            "output_dir": "runs/autotune/universe-selection/fake",
         }
 
     def run_monte_carlo(self):
@@ -274,6 +307,7 @@ class NightlyAutonomyTest(unittest.TestCase):
                     "tune-entry-quality",
                     "optimize",
                     "walk-forward",
+                    "tune-universe",
                     "monte-carlo",
                     "tune-strategy",
                     "tune-exits",
@@ -290,6 +324,8 @@ class NightlyAutonomyTest(unittest.TestCase):
             self.assertEqual(result["research"]["optimizer"]["evaluated_candidates"], 24)
             self.assertEqual(result["research"]["walk_forward"]["summary"]["folds_evaluated"], 4)
             self.assertEqual(result["research"]["monte_carlo"]["monte_carlo_summary"]["probability_positive_pct"], 64.0)
+            self.assertTrue(result["runtime"]["universe_selection"]["changed"])
+            self.assertEqual(result["runtime"]["universe_selection"]["proposed_effective_symbols"], ["CNYRUBF"])
             self.assertFalse(result["runtime"]["effective_config"]["rollback_guardrail"]["rollback_to_base"])
             self.assertTrue(orchestrator.walk_forward_adaptive_history)
             summary_dir = Path(result["output_dir"])

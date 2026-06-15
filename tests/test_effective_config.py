@@ -178,6 +178,7 @@ class EffectiveConfigTest(unittest.TestCase):
             self.assertEqual(sources[2]["selected_values"], {})
             self.assertEqual(sources[3]["selected_values"], {})
             self.assertEqual(sources[4]["selected_values"], {})
+            self.assertEqual(sources[5]["selected_values"], {})
 
     def test_effective_config_uses_confirmed_autotune_values(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -303,7 +304,7 @@ class EffectiveConfigTest(unittest.TestCase):
             self.assertEqual(loaded.strategy.allowed_entry_hours, [9, 10])
             self.assertEqual(loaded.execution.mode.value, "local-paper")
             self.assertFalse(loaded.execution.allow_live_trading)
-            self.assertEqual(len(sources), 5)
+            self.assertEqual(len(sources), 6)
             self.assertEqual(sources[0]["source"], "strategy")
             self.assertTrue(sources[0]["activation"]["confirmed"])
             self.assertEqual(sources[0]["activation"]["confirmation_count"], 2)
@@ -311,6 +312,7 @@ class EffectiveConfigTest(unittest.TestCase):
             self.assertEqual(sources[2]["selected_values"], {})
             self.assertEqual(sources[3]["selected_values"], {})
             self.assertEqual(sources[4]["selected_values"], {})
+            self.assertEqual(sources[5]["selected_values"], {})
 
     def test_stale_current_values_do_not_override_manual_base_config(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -620,14 +622,95 @@ class EffectiveConfigTest(unittest.TestCase):
             self.assertEqual(loaded.strategy.blocked_symbols, ["IMOEXF"])
             self.assertEqual(loaded.strategy.blocked_long_symbols, ["SBER"])
             self.assertEqual(loaded.strategy.blocked_short_symbols, ["GAZP"])
-            self.assertEqual(sources[4]["source"], "entry-symbols")
+            self.assertEqual(sources[5]["source"], "entry-symbols")
             self.assertEqual(
-                sources[4]["selected_values"],
+                sources[5]["selected_values"],
                 {
                     "blocked_symbols": ["IMOEXF"],
                     "blocked_long_symbols": ["SBER"],
                     "blocked_short_symbols": ["GAZP"],
                 },
+            )
+
+    def test_effective_config_can_apply_confirmed_allowed_symbol_universe(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            config_dir = root / "configs"
+            autotune_dir = root / "runs" / "autotune"
+            config_dir.mkdir(parents=True)
+
+            base_config = config_dir / "paper.toml"
+            base_config.write_text(
+                "\n".join(
+                    [
+                        "[app]",
+                        'timezone = "Europe/Moscow"',
+                        "",
+                        "[data]",
+                        'source = "csv"',
+                        'csv_path = "data/demo.csv"',
+                        "",
+                        "[strategy]",
+                        'style = "ema_adx_macd"',
+                        "fast_window = 10",
+                        "slow_window = 40",
+                        "require_breakout = false",
+                        "atr_stop_multiple = 1.5",
+                        "reward_to_risk = 2.0",
+                        "min_signal_strength = 0.0",
+                        "min_trend_strength = 0.002",
+                        "adx_min = 20.0",
+                        "allowed_entry_hours = [9, 10]",
+                        "",
+                        "[execution]",
+                        'mode = "local-paper"',
+                        "allow_live_trading = false",
+                        'state_path = "state/paper_state.json"',
+                        "",
+                        "[backtest]",
+                        "",
+                        "[reporting]",
+                        'output_dir = "runs"',
+                        "",
+                        "[research]",
+                        "",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            for stamp in ("20260101-000001", "20260102-000001"):
+                self._write_json(
+                    autotune_dir / "universe-selection" / stamp / "universe_selection.json",
+                    {
+                        "changed": True,
+                        "reason": "runtime universe updated from optimizer and walk-forward consensus",
+                        "configured_symbols": ["CNYRUBF", "USDRUBF", "EURRUBF"],
+                        "current_allowed_symbols": [],
+                        "current_effective_symbols": ["CNYRUBF", "EURRUBF", "USDRUBF"],
+                        "optimizer_best_symbols": ["CNYRUBF", "USDRUBF"],
+                        "walk_forward_latest_symbols": ["CNYRUBF", "USDRUBF"],
+                        "consensus_symbols": ["CNYRUBF", "USDRUBF"],
+                        "proposed_allowed_symbols": ["CNYRUBF", "USDRUBF"],
+                        "proposed_effective_symbols": ["CNYRUBF", "USDRUBF"],
+                        "additions": [],
+                        "removals": ["EURRUBF"],
+                    },
+                )
+
+            config = load_config(base_config)
+            sources = summarize_effective_config_sources(root / "runs" / "autotune")
+            overrides = build_effective_strategy_overrides(config, source_summaries=sources)
+            output_config = config_dir / "paper.effective.toml"
+            write_effective_config(base_config, output_config, strategy_overrides=overrides)
+            loaded = load_config(output_config)
+
+            self.assertEqual(loaded.strategy.allowed_symbols, ["CNYRUBF", "USDRUBF"])
+            self.assertEqual(sources[4]["source"], "universe-selection")
+            self.assertEqual(
+                sources[4]["selected_values"],
+                {"allowed_symbols": ["CNYRUBF", "USDRUBF"]},
             )
 
     @staticmethod
