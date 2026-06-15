@@ -107,6 +107,85 @@ class BacktestSmokeTest(unittest.TestCase):
         self.assertEqual(len(result.trades), 1)
         self.assertEqual(result.trades[0].reason, ExitReason.SESSION_FLAT.value)
 
+    def test_backtest_trailing_stop_locks_profit_and_exits_on_protected_level(self):
+        instrument = Instrument(symbol="SBER", instrument_type=InstrumentType.STOCK, lot_size=1)
+        candles = [
+            Candle(
+                timestamp=datetime(2025, 1, 1, 10, 0, tzinfo=timezone.utc),
+                open=100.0,
+                high=100.5,
+                low=99.5,
+                close=100.0,
+                volume=2_000_000,
+            ),
+            Candle(
+                timestamp=datetime(2025, 1, 1, 11, 0, tzinfo=timezone.utc),
+                open=100.0,
+                high=108.0,
+                low=101.0,
+                close=106.0,
+                volume=2_100_000,
+            ),
+            Candle(
+                timestamp=datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
+                open=106.0,
+                high=107.0,
+                low=102.0,
+                close=104.0,
+                volume=2_100_000,
+            ),
+        ]
+
+        class FakeTrailingStrategy:
+            def __init__(self):
+                self.config = StrategySection(
+                    trailing_profit_trigger_rub=5.0,
+                    trailing_profit_lock_ratio=0.5,
+                )
+
+            def prepare_history(self, instrument, candles):
+                return None
+
+            def generate_signal(self, instrument, history):
+                if len(history) != 1:
+                    return None
+                return Signal(
+                    instrument=instrument,
+                    direction=SignalDirection.LONG,
+                    strength=0.8,
+                    entry_price=history[-1].close,
+                    stop_price=95.0,
+                    take_profit=120.0,
+                    reason="test-entry",
+                )
+
+            def should_force_flatten_at(self, timestamp):
+                return False
+
+            def entry_block_reason_for_instrument(self, instrument, timestamp, direction=None):
+                return None
+
+        engine = BacktestEngine(
+            strategy=FakeTrailingStrategy(),
+            risk_manager=RiskManager(
+                RiskSection(max_risk_per_trade=0.01, max_gross_exposure=10.0, max_positions=1)
+            ),
+            backtest=BacktestSection(initial_cash=100_000, warmup_bars=1),
+            slippage_bps=0,
+            commission_bps=0,
+        )
+        result = engine.run_with_instruments({"SBER": candles}, {"SBER": instrument})
+
+        self.assertEqual(len(result.trades), 1)
+        self.assertEqual(result.trades[0].reason, ExitReason.STOP_LOSS.value)
+        self.assertEqual(result.trades[0].exit_price, 103.0)
+        self.assertGreater(result.trades[0].net_pnl, 0.0)
+
+        protect_events = [event for event in result.events if event.get("action") == "protect"]
+        self.assertEqual(len(protect_events), 1)
+        self.assertEqual(protect_events[0]["reason"], "trailing-profit-protection")
+        self.assertEqual(protect_events[0]["stop_price"], 103.0)
+
 
 if __name__ == "__main__":
     unittest.main()

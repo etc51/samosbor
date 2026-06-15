@@ -24,6 +24,18 @@ def bars_per_year_for_timeframe(timeframe: str) -> int:
     return mapping.get(timeframe.lower(), 252)
 
 
+_SUPPORTED_STYLES = {
+    "sma_breakout",
+    "ema_adx_macd",
+    "ema_adx_donchian",
+    "adx_regime_hybrid",
+    "rsi_mean_reversion",
+}
+_PRECOMPUTED_TA_STYLES = {"ema_adx_macd", "ema_adx_donchian", "adx_regime_hybrid"}
+_MACD_STYLES = {"ema_adx_macd", "adx_regime_hybrid"}
+_DONCHIAN_STYLES = {"ema_adx_donchian", "adx_regime_hybrid"}
+
+
 class TrendFollowingStrategy:
     def __init__(
         self,
@@ -37,7 +49,7 @@ class TrendFollowingStrategy:
         self.context_provider = context_provider or NeutralContextProvider()
         self.style = config.style.strip().lower()
         self._prepared_ta: dict[str, dict[str, object]] = {}
-        if self.style not in {"sma_breakout", "ema_adx_macd", "ema_adx_donchian", "rsi_mean_reversion"}:
+        if self.style not in _SUPPORTED_STYLES:
             raise ValueError(f"Unsupported strategy style: {config.style}")
         self.schedule_timezone = ZoneInfo(config.schedule_timezone)
         self.allowed_symbols = {
@@ -52,7 +64,7 @@ class TrendFollowingStrategy:
         }
 
     def prepare_history(self, instrument: Instrument, candles: list[Candle]) -> None:
-        if self.style not in {"ema_adx_macd", "ema_adx_donchian"} or not candles:
+        if self.style not in _PRECOMPUTED_TA_STYLES or not candles:
             return
         features = self._compute_ta_feature_series(candles)
         timestamps = [candle.timestamp for candle in candles]
@@ -112,14 +124,14 @@ class TrendFollowingStrategy:
             self.config.volume_window,
             self.config.breakout_window + 1,
         )
-        if self.style == "ema_adx_macd":
+        if self.style in _MACD_STYLES:
             ta_bars = max(
                 self.config.adx_window * 3,
                 self.config.rsi_window + 2,
                 self.config.macd_slow + self.config.macd_signal + 5,
             )
             required = max(required, ta_bars)
-        elif self.style == "ema_adx_donchian":
+        if self.style in _DONCHIAN_STYLES:
             ta_bars = max(
                 self.config.adx_window * 3,
                 self.config.rsi_window + 2,
@@ -170,9 +182,9 @@ class TrendFollowingStrategy:
         context_score = self.context_provider.score(instrument, candles)
         breakout_long = last.close >= breakout_high if self.config.require_breakout else True
         breakout_short = last.close <= breakout_low if self.config.require_breakout else True
+        mean_price = slow
 
         if self.style == "rsi_mean_reversion":
-            mean_price = sma(closes, self.config.slow_window)
             rsi_value = rsi(closes, self.config.rsi_window)
             if mean_price is None or mean_price <= 0 or rsi_value is None:
                 return None
@@ -330,6 +342,107 @@ class TrendFollowingStrategy:
                 )
             return None
 
+        if self.style == "adx_regime_hybrid":
+            ta_features = self._resolved_ta_features(instrument, candles)
+            if ta_features is None or mean_price <= 0:
+                return None
+            fast = ta_features["ema_fast"]
+            slow = ta_features["ema_slow"]
+            rsi_value = ta_features["rsi"]
+            trend_strength = abs(fast - slow) / abs(slow) if slow else 0.0
+            trend_breakout_long = (
+                last.close >= ta_features["donchian_upper"] if self.config.require_breakout else True
+            )
+            trend_breakout_short = (
+                last.close <= ta_features["donchian_lower"] if self.config.require_breakout else True
+            )
+            if ta_features["adx"] >= self.config.adx_min:
+                if trend_strength < self.config.min_trend_strength:
+                    return None
+                if (
+                    fast > slow
+                    and ta_features["macd_hist"] > 0
+                    and ta_features["dmp"] > ta_features["dmn"]
+                    and self.config.rsi_long_min <= rsi_value <= self.config.rsi_long_max
+                    and trend_breakout_long
+                    and last.close >= fast
+                ):
+                    return self._build_signal(
+                        instrument=instrument,
+                        direction=SignalDirection.LONG,
+                        last=last,
+                        atr_value=atr_value,
+                        context_score=context_score,
+                        trend_strength=trend_strength,
+                        turnover=turnover,
+                        volatility=volatility,
+                        extra_reason=(
+                            f"hybrid-trend long ema_fast={fast:.2f} ema_slow={slow:.2f} "
+                            f"adx={ta_features['adx']:.2f} macd_hist={ta_features['macd_hist']:.4f} "
+                            f"upper={ta_features['donchian_upper']:.2f}"
+                        ),
+                    )
+                if (
+                    self.config.allow_shorts
+                    and fast < slow
+                    and ta_features["macd_hist"] < 0
+                    and ta_features["dmn"] > ta_features["dmp"]
+                    and self.config.rsi_short_min <= rsi_value <= self.config.rsi_short_max
+                    and trend_breakout_short
+                    and last.close <= fast
+                ):
+                    return self._build_signal(
+                        instrument=instrument,
+                        direction=SignalDirection.SHORT,
+                        last=last,
+                        atr_value=atr_value,
+                        context_score=context_score,
+                        trend_strength=trend_strength,
+                        turnover=turnover,
+                        volatility=volatility,
+                        extra_reason=(
+                            f"hybrid-trend short ema_fast={fast:.2f} ema_slow={slow:.2f} "
+                            f"adx={ta_features['adx']:.2f} macd_hist={ta_features['macd_hist']:.4f} "
+                            f"lower={ta_features['donchian_lower']:.2f}"
+                        ),
+                    )
+                return None
+
+            deviation_strength = abs(last.close - mean_price) / mean_price
+            if deviation_strength < self.config.min_trend_strength:
+                return None
+            if last.close < mean_price and rsi_value <= self.config.rsi_short_min:
+                return self._build_signal(
+                    instrument=instrument,
+                    direction=SignalDirection.LONG,
+                    last=last,
+                    atr_value=atr_value,
+                    context_score=context_score,
+                    trend_strength=deviation_strength,
+                    turnover=turnover,
+                    volatility=volatility,
+                    extra_reason=(
+                        f"hybrid-range long mean={mean_price:.2f} close={last.close:.2f} "
+                        f"adx={ta_features['adx']:.2f} rsi={rsi_value:.2f}"
+                    ),
+                )
+            if last.close > mean_price and self.config.allow_shorts and rsi_value >= self.config.rsi_long_max:
+                return self._build_signal(
+                    instrument=instrument,
+                    direction=SignalDirection.SHORT,
+                    last=last,
+                    atr_value=atr_value,
+                    context_score=context_score,
+                    trend_strength=deviation_strength,
+                    turnover=turnover,
+                    volatility=volatility,
+                    extra_reason=(
+                        f"hybrid-range short mean={mean_price:.2f} close={last.close:.2f} "
+                        f"adx={ta_features['adx']:.2f} rsi={rsi_value:.2f}"
+                    ),
+                )
+            return None
+
         if fast > slow and breakout_long:
             return self._build_signal(
                 instrument=instrument,
@@ -480,7 +593,7 @@ class TrendFollowingStrategy:
 
         macd = None
         donchian = None
-        if self.style == "ema_adx_macd":
+        if self.style in _MACD_STYLES:
             macd = ta.macd(
                 frame["close"],
                 fast=self.config.macd_fast,
@@ -489,7 +602,7 @@ class TrendFollowingStrategy:
             )
             if macd is None:
                 return [None for _ in candles]
-        elif self.style == "ema_adx_donchian":
+        if self.style in _DONCHIAN_STYLES:
             donchian = ta.donchian(
                 frame["high"],
                 frame["low"],
@@ -513,7 +626,7 @@ class TrendFollowingStrategy:
                 "dmp": float(adx.iloc[index, 1]),
                 "dmn": float(adx.iloc[index, 2]),
             }
-            if self.style == "ema_adx_macd" and macd is not None:
+            if self.style in _MACD_STYLES and macd is not None:
                 values.update(
                     {
                         "macd": float(macd.iloc[index, 0]),
@@ -521,7 +634,7 @@ class TrendFollowingStrategy:
                         "macd_signal": float(macd.iloc[index, 2]),
                     }
                 )
-            elif self.style == "ema_adx_donchian" and donchian is not None:
+            if self.style in _DONCHIAN_STYLES and donchian is not None:
                 values.update(
                     {
                         "donchian_lower": float(donchian_lower.iloc[index]),

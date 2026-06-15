@@ -192,6 +192,75 @@ class TrendFollowingTATest(unittest.TestCase):
         self.assertEqual(signal.direction, SignalDirection.SHORT)
         self.assertLess(signal.take_profit, signal.entry_price)
 
+    def test_adx_regime_hybrid_can_open_trend_long(self):
+        candles = make_candles(trend=0.25, final_close=118.0)
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                style="adx_regime_hybrid",
+                require_breakout=False,
+                min_liquidity_rub=1.0,
+                min_trend_strength=0.002,
+            ),
+            timeframe="hour",
+        )
+        with patch.object(
+            TrendFollowingStrategy,
+            "_ta_features",
+            return_value={
+                "ema_fast": 115.0,
+                "ema_slow": 111.0,
+                "rsi": 62.0,
+                "macd": 1.3,
+                "macd_hist": 0.5,
+                "macd_signal": 0.8,
+                "adx": 28.0,
+                "dmp": 30.0,
+                "dmn": 14.0,
+                "donchian_lower": 104.0,
+                "donchian_upper": 117.0,
+            },
+        ):
+            signal = strategy.generate_signal(self.instrument, candles)
+
+        self.assertIsNotNone(signal)
+        self.assertEqual(signal.direction, SignalDirection.LONG)
+        self.assertGreater(signal.take_profit, signal.entry_price)
+
+    def test_adx_regime_hybrid_can_open_range_short(self):
+        candles = make_candles(trend=0.8, final_close=162.0)
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                style="adx_regime_hybrid",
+                require_breakout=False,
+                min_liquidity_rub=1.0,
+                min_trend_strength=0.002,
+                rsi_long_max=65.0,
+            ),
+            timeframe="hour",
+        )
+        with patch.object(
+            TrendFollowingStrategy,
+            "_ta_features",
+            return_value={
+                "ema_fast": 158.0,
+                "ema_slow": 150.0,
+                "rsi": 70.0,
+                "macd": 0.2,
+                "macd_hist": 0.05,
+                "macd_signal": 0.15,
+                "adx": 12.0,
+                "dmp": 18.0,
+                "dmn": 16.0,
+                "donchian_lower": 140.0,
+                "donchian_upper": 161.0,
+            },
+        ):
+            signal = strategy.generate_signal(self.instrument, candles)
+
+        self.assertIsNotNone(signal)
+        self.assertEqual(signal.direction, SignalDirection.SHORT)
+        self.assertLess(signal.take_profit, signal.entry_price)
+
     def test_rsi_mean_reversion_can_open_long(self):
         candles = make_candles(trend=-0.8, final_close=38.0)
         strategy = TrendFollowingStrategy(

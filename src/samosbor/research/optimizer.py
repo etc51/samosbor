@@ -22,6 +22,8 @@ class OptimizationCandidate:
     require_breakout: bool
     atr_stop_multiple: float
     reward_to_risk: float
+    trailing_profit_trigger_rub: float
+    trailing_profit_lock_ratio: float
     min_trend_strength: float
     adx_min: float
     rsi_long_max: float
@@ -66,6 +68,18 @@ class ParameterOptimizer:
                 payload.get("atr_stop_multiple", self.base_strategy.atr_stop_multiple)
             ),
             reward_to_risk=float(payload.get("reward_to_risk", self.base_strategy.reward_to_risk)),
+            trailing_profit_trigger_rub=float(
+                payload.get(
+                    "trailing_profit_trigger_rub",
+                    self.base_strategy.trailing_profit_trigger_rub,
+                )
+            ),
+            trailing_profit_lock_ratio=float(
+                payload.get(
+                    "trailing_profit_lock_ratio",
+                    self.base_strategy.trailing_profit_lock_ratio,
+                )
+            ),
             min_trend_strength=float(
                 payload.get("min_trend_strength", self.base_strategy.min_trend_strength)
             ),
@@ -98,22 +112,22 @@ class ParameterOptimizer:
                     normalized_style = style.strip().lower()
                     require_breakout_values = (
                         breakout_values
-                        if normalized_style in {"sma_breakout", "ema_adx_macd"}
+                        if normalized_style in {"sma_breakout", "ema_adx_macd", "adx_regime_hybrid"}
                         else [self.base_strategy.require_breakout]
                     )
                     adx_values = (
                         self.research.adx_min_values
-                        if normalized_style in {"ema_adx_macd", "ema_adx_donchian"}
+                        if normalized_style in {"ema_adx_macd", "ema_adx_donchian", "adx_regime_hybrid"}
                         else [self.base_strategy.adx_min]
                     )
                     rsi_long_max_values = (
                         self.research.rsi_long_max_values
-                        if normalized_style == "rsi_mean_reversion"
+                        if normalized_style in {"rsi_mean_reversion", "adx_regime_hybrid"}
                         else [self.base_strategy.rsi_long_max]
                     )
                     rsi_short_min_values = (
                         self.research.rsi_short_min_values
-                        if normalized_style == "rsi_mean_reversion"
+                        if normalized_style in {"rsi_mean_reversion", "adx_regime_hybrid"}
                         else [self.base_strategy.rsi_short_min]
                     )
                     for (
@@ -122,6 +136,8 @@ class ParameterOptimizer:
                         require_breakout,
                         atr_mult,
                         rr,
+                        trailing_trigger_rub,
+                        trailing_lock_ratio,
                         trend_strength,
                         adx_min,
                         rsi_long_max,
@@ -132,6 +148,8 @@ class ParameterOptimizer:
                         require_breakout_values,
                         self.research.atr_stop_multipliers,
                         self.research.reward_to_risk_values,
+                        self.research.trailing_profit_trigger_rub_values,
+                        self.research.trailing_profit_lock_ratio_values,
                         self.research.trend_strength_values,
                         adx_values,
                         rsi_long_max_values,
@@ -148,6 +166,8 @@ class ParameterOptimizer:
                             require_breakout=require_breakout,
                             atr_stop_multiple=atr_mult,
                             reward_to_risk=rr,
+                            trailing_profit_trigger_rub=trailing_trigger_rub,
+                            trailing_profit_lock_ratio=trailing_lock_ratio,
                             min_trend_strength=trend_strength,
                             adx_min=adx_min,
                             rsi_long_max=rsi_long_max,
@@ -171,6 +191,8 @@ class ParameterOptimizer:
                             require_breakout=require_breakout,
                             atr_stop_multiple=atr_mult,
                             reward_to_risk=rr,
+                            trailing_profit_trigger_rub=trailing_trigger_rub,
+                            trailing_profit_lock_ratio=trailing_lock_ratio,
                             min_trend_strength=trend_strength,
                             adx_min=adx_min,
                             rsi_long_max=rsi_long_max,

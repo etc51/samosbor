@@ -315,6 +315,89 @@ class EffectiveConfigTest(unittest.TestCase):
             self.assertEqual(sources[4]["selected_values"], {})
             self.assertEqual(sources[5]["selected_values"], {})
 
+    def test_effective_config_can_apply_confirmed_trailing_exit_values(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            config_dir = root / "configs"
+            autotune_dir = root / "runs" / "autotune"
+            config_dir.mkdir(parents=True)
+
+            base_config = config_dir / "paper.toml"
+            base_config.write_text(
+                "\n".join(
+                    [
+                        "[app]",
+                        'timezone = "Europe/Moscow"',
+                        "",
+                        "[data]",
+                        'source = "csv"',
+                        'csv_path = "data/demo.csv"',
+                        "",
+                        "[strategy]",
+                        'style = "ema_adx_macd"',
+                        "fast_window = 10",
+                        "slow_window = 40",
+                        "require_breakout = false",
+                        "atr_stop_multiple = 1.5",
+                        "reward_to_risk = 2.0",
+                        "trailing_profit_trigger_rub = 0.0",
+                        "trailing_profit_lock_ratio = 0.0",
+                        "min_signal_strength = 0.0",
+                        "min_trend_strength = 0.002",
+                        "adx_min = 20.0",
+                        "allowed_entry_hours = [9, 10]",
+                        "",
+                        "[execution]",
+                        'mode = "local-paper"',
+                        "allow_live_trading = false",
+                        'state_path = "state/paper_state.json"',
+                        "",
+                        "[backtest]",
+                        "",
+                        "[reporting]",
+                        'output_dir = "runs"',
+                        "",
+                        "[research]",
+                        "",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            for stamp in ("20260101-000001", "20260102-000001"):
+                self._write_json(
+                    autotune_dir / "exits" / stamp / "exit_tuning.json",
+                    {
+                        "changed": True,
+                        "reason": "exit candidate passed guardrails",
+                        "current_exit_settings": {
+                            "atr_stop_multiple": 1.5,
+                            "reward_to_risk": 2.0,
+                            "trailing_profit_trigger_rub": 0.0,
+                            "trailing_profit_lock_ratio": 0.0,
+                        },
+                        "candidate_exit_settings": {
+                            "atr_stop_multiple": 1.5,
+                            "reward_to_risk": 2.0,
+                            "trailing_profit_trigger_rub": 1200.0,
+                            "trailing_profit_lock_ratio": 0.5,
+                        },
+                    },
+                )
+
+            config = load_config(base_config)
+            sources = summarize_effective_config_sources(root / "runs" / "autotune")
+            overrides = build_effective_strategy_overrides(config, source_summaries=sources)
+            output_config = config_dir / "paper.effective.toml"
+            write_effective_config(base_config, output_config, strategy_overrides=overrides)
+            loaded = load_config(output_config)
+
+            self.assertAlmostEqual(loaded.strategy.trailing_profit_trigger_rub, 1200.0)
+            self.assertAlmostEqual(loaded.strategy.trailing_profit_lock_ratio, 0.5)
+            self.assertEqual(sources[1]["selected_values"]["trailing_profit_trigger_rub"], 1200.0)
+            self.assertEqual(sources[1]["selected_values"]["trailing_profit_lock_ratio"], 0.5)
+
     def test_stale_current_values_do_not_override_manual_base_config(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)

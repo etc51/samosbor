@@ -2,8 +2,16 @@ from __future__ import annotations
 
 from statistics import mean
 
-from ..config import RiskSection
-from ..domain import InstrumentType, PortfolioState, RiskDecision, Signal, SignalDirection, TradeRecord
+from ..config import RiskSection, StrategySection
+from ..domain import (
+    InstrumentType,
+    PortfolioState,
+    Position,
+    RiskDecision,
+    Signal,
+    SignalDirection,
+    TradeRecord,
+)
 
 
 class RiskManager:
@@ -52,6 +60,10 @@ class RiskManager:
         quantity_lots = int(risk_budget // risk_per_lot)
         if quantity_lots < 1:
             return RiskDecision(False, "risk budget too small")
+
+        quantity_lots = self._cap_single_position_exposure(quantity_lots, signal, equity)
+        if quantity_lots < 1:
+            return RiskDecision(False, "single position exposure cap reached")
 
         if (
             signal.instrument.instrument_type == InstrumentType.FUTURE
@@ -117,6 +129,58 @@ class RiskManager:
             risk_budget_rub=risk_budget,
             estimated_notional_rub=estimated_notional,
         )
+
+    def _cap_single_position_exposure(
+        self,
+        quantity_lots: int,
+        signal: Signal,
+        equity: float,
+    ) -> int:
+        if quantity_lots < 1:
+            return 0
+
+        position_cap_ratio = min(
+            self.config.max_gross_exposure,
+            max(0.0, self.config.max_position_exposure_ratio),
+        )
+        if position_cap_ratio <= 0:
+            return 0
+
+        notional_per_lot = signal.entry_price * signal.instrument.lot_size
+        if notional_per_lot <= 0:
+            return 0
+
+        max_position_notional = equity * position_cap_ratio
+        position_capped = int(max_position_notional // notional_per_lot)
+        return min(quantity_lots, position_capped)
+
+    def trailing_stop_price(
+        self,
+        position: Position,
+        mark_price: float,
+        strategy: StrategySection,
+    ) -> float | None:
+        trigger_rub = max(0.0, strategy.trailing_profit_trigger_rub)
+        lock_ratio = max(0.0, min(1.0, strategy.trailing_profit_lock_ratio))
+        if trigger_rub <= 0 or lock_ratio <= 0:
+            return None
+
+        open_profit = position.unrealized_pnl(mark_price)
+        if open_profit < trigger_rub or position.quantity_units <= 0:
+            return None
+
+        locked_profit = open_profit * lock_ratio
+        protected_move = locked_profit / position.quantity_units
+        if position.direction == SignalDirection.LONG:
+            candidate = position.entry_price + protected_move
+            if candidate > position.stop_price:
+                return candidate
+            return None
+
+        candidate = position.entry_price - protected_move
+        if candidate < position.stop_price:
+            return candidate
+        return None
 
     def _dynamic_risk_fraction(self, recent_trades: list[TradeRecord]) -> float:
         if len(recent_trades) < self.config.min_trades_for_kelly:

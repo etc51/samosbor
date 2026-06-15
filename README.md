@@ -27,7 +27,7 @@
 - `configs/local_pack_ta_research.toml` — сфокусированный TA-search по сильным MOEX futures
 - `configs/local_pack_server_multi_300k.toml` — общий research-профиль под server-runtime, budget `300 000 RUB` и target midpoint `3000 RUB/день`
 - `configs/local_pack_stocks_intraday_300k.toml` — локальный research-профиль под расширенный universe акций 1–2 эшелона из архива на `D:`
-- `configs/local_pack_stocks_intraday_300k_focused.toml` — ускоренный локальный профиль для nightly-search на компактном shortlist с переключением между `ema_adx_macd` и `ema_adx_donchian`
+- `configs/local_pack_stocks_intraday_300k_focused.toml` — ускоренный локальный профиль для nightly-search на компактном shortlist с переключением между трендовыми и лёгкими hybrid-режимами
 - `configs/local_pack_server_pair_cny_usd_candidate.toml` — evidence-backed candidate для пары `CNYRUBF + USDRUBF`
 - `configs/local_pack_usdrubf_candidate.toml` — конфиг лучшего кандидата из локальной оптимизации
 - `configs/local_pack_cnyrubf_ta_candidate.toml` — TA-кандидат на `CNYRUBF`
@@ -36,7 +36,7 @@
 - `configs/local_pack_fx_index_ta_aggressive.toml` — более агрессивный TA-портфель `USDRUBF + CNYRUBF + IMOEXF`
 - `configs/server_tbank_cnyrubf_premium.toml` — legacy server-config для multi-futures paper-runtime, оставленный для архивного research
 - `configs/server_tbank_stocks_intraday_300k.toml` — server paper-runtime под stock-trend контур через T-Bank API
-- `configs/server_tbank_stocks_intraday_300k_focused.toml` — более лёгкий server runtime для ночной автономии на shortlist ликвидных бумаг и двух быстрых трендовых TA-стилей
+- `configs/server_tbank_stocks_intraday_300k_focused.toml` — более лёгкий server runtime для ночной автономии на shortlist ликвидных бумаг с двумя быстрыми трендовыми TA-стилями и одним regime-hybrid
 - `docs/architecture.md` — архитектура и логика работы
 - `requirements-tbank.txt` — установка актуального SDK Т-Банка
 - `tests/` — smoke/unit tests
@@ -171,6 +171,7 @@ SSL_TBANK_VERIFY=True
 - при новом коммите делает `git pull --ff-only`, обновляет окружение, прогоняет unit tests и затем сам синхронизирует `systemd` units через `scripts/server/install-server.sh`
 - `samosbor-dashboard.service` показывает только текущий `samosbor` paper-runtime, active overrides, open positions и autonomy artifacts, не смешивая их с legacy dashboards на сервере
 - для stock paper-runtime через T-Bank API sizing идёт через обычный equity-based risk manager без реальных ордеров; futures-ветка остаётся в проекте как legacy-совместимость
+- stock/paper-профили дополнительно ограничивают одну позицию через `max_position_exposure_ratio`, чтобы одна бумага не съедала весь виртуальный бюджет и оставляла место под другие акции
 - `samosbor-daily-review.timer` после торговой сессии запускает единый `nightly-autonomy` цикл: daily analyze, entry restrictions, signal-feedback bootstrap, optimizer, walk-forward research, active-universe selection, Monte Carlo, strategy/exit tuning и финальную пересборку effective config
 - daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/entry-symbols`, `runs/autotune/entry-quality`, `runs/autotune/strategy` и `runs/autotune/exits`
 - тот же nightly cycle теперь дополнительно пишет агрегированный summary в `runs/autotune/nightly-autonomy`
@@ -219,7 +220,9 @@ SSL_TBANK_VERIFY=True
 - `sma_breakout` — исходный трендовый режим на SMA + breakout + ATR
 - `ema_adx_macd` — режим на `pandas-ta` с EMA, ADX, RSI и MACD-фильтрами
 - `ema_adx_donchian` — трендовый breakout-режим на `pandas-ta` с EMA, ADX, RSI и Donchian-каналами
+- `adx_regime_hybrid` — гибридный режим: при сильном тренде работает как momentum/trend-following, а при слабом ADX переключается в mean-reversion
 - `rsi_mean_reversion` — контртрендовый режим на возврат к средней через SMA + RSI-экстремумы; остаётся в широких stock research-профилях и может снова включаться в более глубокий nightly search
+- в exit-логике доступны `trailing_profit_trigger_rub` и `trailing_profit_lock_ratio`: после заданной открытой прибыли по позиции стоп начинает подтягиваться и защищать часть уже заработанных рублей
 
 Поля research-grid для TA-оптимизации:
 

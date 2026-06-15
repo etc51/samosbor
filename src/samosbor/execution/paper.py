@@ -229,6 +229,43 @@ class LocalPaperBroker:
         del self.portfolio.positions[symbol]
         return trade
 
+    def update_position_protection(
+        self,
+        symbol: str,
+        *,
+        timestamp: datetime,
+        stop_price: float | None = None,
+        take_profit: float | None = None,
+        reason: str = "manual-protection-update",
+    ) -> bool:
+        position = self.portfolio.positions.get(symbol)
+        if position is None:
+            return False
+
+        changed = False
+        if stop_price is not None and stop_price != position.stop_price:
+            position.stop_price = stop_price
+            changed = True
+        if take_profit is not None and take_profit != position.take_profit:
+            position.take_profit = take_profit
+            changed = True
+        if not changed:
+            return False
+
+        position.updated_at = timestamp
+        self.events.append(
+            {
+                "timestamp": timestamp.isoformat(),
+                "symbol": symbol,
+                "action": "protect",
+                "direction": position.direction.value,
+                "stop_price": position.stop_price,
+                "take_profit": position.take_profit,
+                "reason": reason,
+            }
+        )
+        return True
+
     def _slipped_price(self, price: float, *, is_buy: bool) -> float:
         factor = 1 + (self.slippage_bps / 10_000)
         return price * factor if is_buy else price / factor

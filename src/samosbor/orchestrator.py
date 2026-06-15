@@ -950,6 +950,19 @@ class TradingOrchestrator:
                         reason=ExitReason.SESSION_FLAT,
                     )
                     position = None
+                if position is not None:
+                    new_stop = risk_manager.trailing_stop_price(
+                        position,
+                        latest.close,
+                        self.config.strategy,
+                    )
+                    if new_stop is not None:
+                        broker.update_position_protection(
+                            instrument.symbol,
+                            timestamp=latest.timestamp,
+                            stop_price=new_stop,
+                            reason="trailing-profit-protection",
+                        )
 
             signal = strategy.generate_signal(instrument, candles)
             shadow_signal = shadow_strategy.generate_signal(instrument, candles)

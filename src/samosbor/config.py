@@ -60,6 +60,8 @@ class StrategySection:
     require_breakout: bool = True
     atr_stop_multiple: float = 2.0
     reward_to_risk: float = 2.0
+    trailing_profit_trigger_rub: float = 0.0
+    trailing_profit_lock_ratio: float = 0.0
     min_signal_strength: float = 0.0
     min_trend_strength: float = 0.004
     min_liquidity_rub: float = 50_000_000
@@ -92,6 +94,7 @@ class RiskSection:
     max_drawdown: float = 0.12
     cash_reserve_ratio: float = 0.15
     max_positions: int = 6
+    max_position_exposure_ratio: float = 1.0
     kelly_lookback_trades: int = 20
     min_trades_for_kelly: int = 8
 
@@ -125,6 +128,8 @@ class ResearchSection:
     require_breakout_values: list[bool] = field(default_factory=lambda: [True])
     atr_stop_multipliers: list[float] = field(default_factory=lambda: [1.5, 2.0])
     reward_to_risk_values: list[float] = field(default_factory=lambda: [1.5, 2.0, 2.5])
+    trailing_profit_trigger_rub_values: list[float] = field(default_factory=lambda: [0.0])
+    trailing_profit_lock_ratio_values: list[float] = field(default_factory=lambda: [0.0])
     trend_strength_values: list[float] = field(default_factory=lambda: [0.004, 0.006])
     adx_min_values: list[float] = field(default_factory=lambda: [20.0])
     rsi_long_max_values: list[float] = field(default_factory=lambda: [70.0, 75.0])

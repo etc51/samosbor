@@ -86,6 +86,7 @@
 
 - стиль `ema_adx_macd` включает `EMA`, `ADX`, `RSI` и `MACD` через `pandas-ta`
 - стиль `ema_adx_donchian` использует `EMA`, `ADX`, `RSI` и Donchian-каналы через `pandas-ta` для более жёсткого breakout-following по акциям
+- стиль `adx_regime_hybrid` переключает поведение между trend-following и mean-reversion по режиму `ADX`, не вводя отдельный класс стратегии
 - стиль `rsi_mean_reversion` ищет возврат цены к SMA после RSI-экстремумов и остаётся отдельной контртрендовой веткой для более широкого autonomous search
 - `require_breakout` позволяет оставить жёсткий пробойный фильтр или отключить его для более раннего входа
 - optimizer/walk-forward теперь могут перебирать не только `style`, но и пороги `rsi_long_max` / `rsi_short_min` для mean-reversion
@@ -100,10 +101,12 @@
 
 - риск на сделку
 - лимит gross exposure
+- лимит `max_position_exposure_ratio`, чтобы одна позиция не занимала почти весь виртуальный капитал и не блокировала многобумажный runtime
 - лимит количества позиций
 - cash reserve
 - аварийная остановка по max drawdown
 - динамическое масштабирование через упрощённый half-Kelly
+- trailing-подтяжка стопа по полям `trailing_profit_trigger_rub` и `trailing_profit_lock_ratio`, чтобы после набора открытой прибыли стоп начинал фиксировать часть уже заработанного рублёвого PnL
 - risk-up профили допускают использование маржинального капитала через `max_gross_exposure > 1.0`
 - если для futures известны `initial_margin_buy`/`initial_margin_sell`, лимит gross exposure интерпретируется как лимит суммарно зарезервированного ГО, а не как notional
 
@@ -168,7 +171,7 @@
 - Monte Carlo по наблюдаемым месячным доходностям
 - rolling walk-forward validation с переоптимизацией на train-окне и OOS-проверкой на test-окне
 - отдельные research-конфиги под локальный parquet-архив на `D:`
-- перебор `strategy_styles`, `require_breakout_values` и `adx_min_values` для TA-ветки; широкий stock research теперь держит `ema_adx_macd`, `ema_adx_donchian` и `rsi_mean_reversion`, а focused nightly runtime сравнивает два более быстрых trend-style
+- перебор `strategy_styles`, `require_breakout_values` и `adx_min_values` для TA-ветки; широкий stock research теперь держит `ema_adx_macd`, `ema_adx_donchian`, `adx_regime_hybrid` и `rsi_mean_reversion`, а focused nightly runtime сравнивает два trend-style и один облегчённый hybrid
 
 CLI:
 

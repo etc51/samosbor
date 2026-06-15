@@ -15,6 +15,8 @@ _STRATEGY_OVERRIDE_ORDER = [
     "require_breakout",
     "atr_stop_multiple",
     "reward_to_risk",
+    "trailing_profit_trigger_rub",
+    "trailing_profit_lock_ratio",
     "min_signal_strength",
     "min_trend_strength",
     "adx_min",
@@ -45,6 +47,8 @@ def base_strategy_values(config: AppConfig) -> dict[str, object]:
         "require_breakout": config.strategy.require_breakout,
         "atr_stop_multiple": config.strategy.atr_stop_multiple,
         "reward_to_risk": config.strategy.reward_to_risk,
+        "trailing_profit_trigger_rub": config.strategy.trailing_profit_trigger_rub,
+        "trailing_profit_lock_ratio": config.strategy.trailing_profit_lock_ratio,
         "min_signal_strength": config.strategy.min_signal_strength,
         "min_trend_strength": config.strategy.min_trend_strength,
         "adx_min": config.strategy.adx_min,
@@ -461,6 +465,8 @@ def _strategy_current_values(payload: dict[str, object]) -> dict[str, object]:
             "fast_window",
             "slow_window",
             "require_breakout",
+            "trailing_profit_trigger_rub",
+            "trailing_profit_lock_ratio",
             "min_trend_strength",
             "adx_min",
             "rsi_long_max",
@@ -479,6 +485,8 @@ def _strategy_candidate_values(payload: dict[str, object]) -> dict[str, object]:
             "fast_window",
             "slow_window",
             "require_breakout",
+            "trailing_profit_trigger_rub",
+            "trailing_profit_lock_ratio",
             "min_trend_strength",
             "adx_min",
             "rsi_long_max",
@@ -492,7 +500,12 @@ def _exit_current_values(payload: dict[str, object]) -> dict[str, object]:
     source = payload.get("current_exit_settings", {})
     return {
         key: source[key]
-        for key in ("atr_stop_multiple", "reward_to_risk")
+        for key in (
+            "atr_stop_multiple",
+            "reward_to_risk",
+            "trailing_profit_trigger_rub",
+            "trailing_profit_lock_ratio",
+        )
         if key in source
     }
 
@@ -501,7 +514,12 @@ def _exit_candidate_values(payload: dict[str, object]) -> dict[str, object]:
     source = payload.get("candidate_exit_settings", {})
     return {
         key: source[key]
-        for key in ("atr_stop_multiple", "reward_to_risk")
+        for key in (
+            "atr_stop_multiple",
+            "reward_to_risk",
+            "trailing_profit_trigger_rub",
+            "trailing_profit_lock_ratio",
+        )
         if key in source
     }
 
@@ -575,6 +593,8 @@ def _strategy_values(payload: dict[str, object]) -> dict[str, object]:
             "fast_window",
             "slow_window",
             "require_breakout",
+            "trailing_profit_trigger_rub",
+            "trailing_profit_lock_ratio",
             "min_trend_strength",
             "adx_min",
             "rsi_long_max",
@@ -588,7 +608,12 @@ def _exit_values(payload: dict[str, object]) -> dict[str, object]:
     source = payload.get("candidate_exit_settings", {}) if payload.get("changed") else payload.get("current_exit_settings", {})
     return {
         key: source[key]
-        for key in ("atr_stop_multiple", "reward_to_risk")
+        for key in (
+            "atr_stop_multiple",
+            "reward_to_risk",
+            "trailing_profit_trigger_rub",
+            "trailing_profit_lock_ratio",
+        )
         if key in source
     }
 

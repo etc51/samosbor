@@ -65,6 +65,8 @@ breakout_window = 20
 require_breakout = false
 atr_stop_multiple = 1.5
 reward_to_risk = 2.0
+trailing_profit_trigger_rub = 1200.0
+trailing_profit_lock_ratio = 0.5
 min_signal_strength = 0.0
 min_trend_strength = 0.002
 min_liquidity_rub = 6000000
@@ -91,6 +93,7 @@ max_gross_exposure = 1.5
 max_drawdown = 0.1
 cash_reserve_ratio = 0.1
 max_positions = 4
+max_position_exposure_ratio = 0.30
 kelly_lookback_trades = 20
 min_trades_for_kelly = 8
 
@@ -110,12 +113,14 @@ output_dir = "runs"
 write_csv = true
 
 [research]
-strategy_styles = ["ema_adx_macd", "ema_adx_donchian", "rsi_mean_reversion"]
+strategy_styles = ["ema_adx_macd", "ema_adx_donchian", "adx_regime_hybrid", "rsi_mean_reversion"]
 fast_windows = [10, 15]
 slow_windows = [30, 50]
 require_breakout_values = [false]
 atr_stop_multipliers = [1.25, 1.5]
 reward_to_risk_values = [1.5, 2.0]
+trailing_profit_trigger_rub_values = [0.0, 1200.0]
+trailing_profit_lock_ratio_values = [0.5]
 trend_strength_values = [0.002]
 adx_min_values = [15.0, 20.0]
 rsi_long_max_values = [70.0, 75.0]

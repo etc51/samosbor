@@ -55,6 +55,8 @@ class OptimizerTest(unittest.TestCase):
         self.assertEqual(payload["best_candidate"]["style"], "sma_breakout")
         self.assertTrue(payload["best_candidate"]["require_breakout"])
         self.assertEqual(payload["best_candidate"]["adx_min"], 20.0)
+        self.assertEqual(payload["best_candidate"]["trailing_profit_trigger_rub"], 0.0)
+        self.assertEqual(payload["best_candidate"]["trailing_profit_lock_ratio"], 0.0)
 
     def test_optimizer_can_evaluate_ta_style_candidates(self):
         instrument = Instrument(symbol="TEST", instrument_type=InstrumentType.STOCK, lot_size=1)
@@ -206,6 +208,107 @@ class OptimizerTest(unittest.TestCase):
         self.assertIsNotNone(payload["best_candidate"])
         self.assertEqual(payload["best_candidate"]["style"], "ema_adx_donchian")
         self.assertEqual(payload["best_candidate"]["adx_min"], 15.0)
+
+    def test_optimizer_can_evaluate_hybrid_style_candidates(self):
+        instrument = Instrument(symbol="TEST", instrument_type=InstrumentType.STOCK, lot_size=1)
+        candles = []
+        ts = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        price = 100.0
+        for _ in range(180):
+            candles.append(
+                Candle(
+                    timestamp=ts,
+                    open=price,
+                    high=price * 1.015,
+                    low=price * 0.993,
+                    close=price * 1.007,
+                    volume=5_000_000,
+                )
+            )
+            ts += timedelta(hours=1)
+            price *= 1.004
+
+        optimizer = ParameterOptimizer(
+            base_strategy=StrategySection(min_liquidity_rub=1.0),
+            risk=RiskSection(),
+            backtest=BacktestSection(initial_cash=100_000, warmup_bars=30),
+            research=ResearchSection(
+                strategy_styles=["adx_regime_hybrid"],
+                fast_windows=[10],
+                slow_windows=[30],
+                require_breakout_values=[False],
+                atr_stop_multipliers=[1.5],
+                reward_to_risk_values=[2.0],
+                trend_strength_values=[0.002],
+                adx_min_values=[15.0],
+                rsi_long_max_values=[75.0],
+                rsi_short_min_values=[25.0],
+                subset_min_size=1,
+                subset_max_size=1,
+                top_n=3,
+                min_trades=1,
+            ),
+            timeframe="hour",
+            slippage_bps=0,
+            commission_bps=0,
+        )
+
+        payload = optimizer.run({"TEST": candles}, {"TEST": instrument})
+
+        self.assertEqual(payload["evaluated_candidates"], 1)
+        self.assertIsNotNone(payload["best_candidate"])
+        self.assertEqual(payload["best_candidate"]["style"], "adx_regime_hybrid")
+        self.assertEqual(payload["best_candidate"]["adx_min"], 15.0)
+
+    def test_optimizer_can_include_trailing_profit_parameters(self):
+        instrument = Instrument(symbol="TEST", instrument_type=InstrumentType.STOCK, lot_size=1)
+        candles = []
+        ts = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        price = 100.0
+        for _ in range(150):
+            candles.append(
+                Candle(
+                    timestamp=ts,
+                    open=price,
+                    high=price * 1.014,
+                    low=price * 0.994,
+                    close=price * 1.006,
+                    volume=5_000_000,
+                )
+            )
+            ts += timedelta(hours=1)
+            price *= 1.004
+
+        optimizer = ParameterOptimizer(
+            base_strategy=StrategySection(min_liquidity_rub=1.0),
+            risk=RiskSection(),
+            backtest=BacktestSection(initial_cash=100_000, warmup_bars=30),
+            research=ResearchSection(
+                strategy_styles=["ema_adx_macd"],
+                fast_windows=[10],
+                slow_windows=[30],
+                require_breakout_values=[False],
+                atr_stop_multipliers=[1.5],
+                reward_to_risk_values=[2.0],
+                trailing_profit_trigger_rub_values=[1_000.0],
+                trailing_profit_lock_ratio_values=[0.5],
+                trend_strength_values=[0.002],
+                adx_min_values=[15.0],
+                subset_min_size=1,
+                subset_max_size=1,
+                top_n=3,
+                min_trades=1,
+            ),
+            timeframe="hour",
+            slippage_bps=0,
+            commission_bps=0,
+        )
+
+        payload = optimizer.run({"TEST": candles}, {"TEST": instrument})
+
+        self.assertEqual(payload["evaluated_candidates"], 1)
+        self.assertEqual(payload["best_candidate"]["trailing_profit_trigger_rub"], 1_000.0)
+        self.assertEqual(payload["best_candidate"]["trailing_profit_lock_ratio"], 0.5)
 
 
 if __name__ == "__main__":

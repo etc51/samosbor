@@ -151,6 +151,54 @@ class ExitTuningPayloadTest(unittest.TestCase):
         self.assertFalse(payload["changed"])
         self.assertEqual(payload["reason"], "candidate exit settings failed one or more safety guardrails")
 
+    def test_exit_tuning_can_apply_trailing_profit_patch(self):
+        current = StrategySection(
+            atr_stop_multiple=1.5,
+            reward_to_risk=2.0,
+            trailing_profit_trigger_rub=0.0,
+            trailing_profit_lock_ratio=0.0,
+        )
+        candidate = StrategySection(
+            atr_stop_multiple=1.5,
+            reward_to_risk=2.0,
+            trailing_profit_trigger_rub=1_200.0,
+            trailing_profit_lock_ratio=0.5,
+        )
+        payload = build_exit_tuning_payload(
+            current_strategy=current,
+            candidate_strategy=candidate,
+            baseline_latest_test_summary={
+                "total_return_pct": 0.4,
+                "normalized_monthly_return_pct": 0.4,
+                "max_drawdown_pct": 1.2,
+                "sharpe_ratio": 0.4,
+            },
+            candidate_latest_test_summary={
+                "total_return_pct": 0.9,
+                "normalized_monthly_return_pct": 0.9,
+                "max_drawdown_pct": 1.4,
+                "sharpe_ratio": 0.8,
+            },
+            baseline_exit_breakdown=build_exit_reason_breakdown(
+                [_trade(-100.0, "stop-loss"), _trade(120.0, "take-profit")]
+            ),
+            candidate_exit_breakdown=build_exit_reason_breakdown(
+                [_trade(-40.0, "stop-loss"), _trade(180.0, "take-profit")]
+            ),
+            walk_forward_summary={
+                "average_test_normalized_monthly_return_pct": 0.6,
+                "probability_positive_pct": 66.7,
+            },
+            walk_forward_config={"train_months": 4, "test_months": 1, "step_months": 1},
+            backtest=BacktestSection(initial_cash=300_000),
+            research=ResearchSection(target_daily_profit_rub=3_000.0),
+            research_window={"available_months": 5, "usable": True},
+        )
+
+        self.assertTrue(payload["changed"])
+        self.assertEqual(payload["patch_values"]["trailing_profit_trigger_rub"], 1_200.0)
+        self.assertEqual(payload["patch_values"]["trailing_profit_lock_ratio"], 0.5)
+
 
 if __name__ == "__main__":
     unittest.main()

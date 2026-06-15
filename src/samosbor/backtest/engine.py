@@ -85,6 +85,15 @@ class BacktestEngine:
                         )
 
                 position = broker.portfolio.positions.get(symbol)
+                if position is not None:
+                    self._apply_trailing_stop(
+                        broker=broker,
+                        symbol=symbol,
+                        position=position,
+                        mark_price=candle.close,
+                        timestamp=timestamp,
+                    )
+
                 if len(history) >= self.backtest.warmup_bars and not broker.portfolio.trading_halted:
                     signal = self.strategy.generate_signal(instruments_by_symbol[symbol], history)
                     if signal is not None:
@@ -170,6 +179,30 @@ class BacktestEngine:
             trades=broker.trades,
             equity_curve=equity_curve,
             events=events + broker.events,
+        )
+
+    def _apply_trailing_stop(
+        self,
+        *,
+        broker: LocalPaperBroker,
+        symbol: str,
+        position,
+        mark_price: float,
+        timestamp,
+    ) -> None:
+        strategy_config = getattr(self.strategy, "config", None)
+        if strategy_config is None:
+            return
+
+        new_stop = self.risk_manager.trailing_stop_price(position, mark_price, strategy_config)
+        if new_stop is None:
+            return
+
+        broker.update_position_protection(
+            symbol,
+            timestamp=timestamp,
+            stop_price=new_stop,
+            reason="trailing-profit-protection",
         )
 
     @staticmethod

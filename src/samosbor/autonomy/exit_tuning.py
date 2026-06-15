@@ -169,6 +169,8 @@ def _exit_view(strategy: StrategySection) -> dict[str, object]:
     return {
         "atr_stop_multiple": strategy.atr_stop_multiple,
         "reward_to_risk": strategy.reward_to_risk,
+        "trailing_profit_trigger_rub": strategy.trailing_profit_trigger_rub,
+        "trailing_profit_lock_ratio": strategy.trailing_profit_lock_ratio,
     }
 
 

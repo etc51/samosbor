@@ -126,5 +126,106 @@ class PaperCycleSessionFlatTest(unittest.TestCase):
             self.assertEqual(reloaded.trades[0].reason, ExitReason.SESSION_FLAT.value)
 
 
+class PaperCycleTrailingProtectionTest(unittest.TestCase):
+    def test_paper_cycle_persists_trailing_stop_after_profit_threshold(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            config_dir = root / "configs"
+            config_dir.mkdir(parents=True)
+            config_path = config_dir / "paper.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[app]",
+                        'timezone = "Europe/Moscow"',
+                        "",
+                        "[data]",
+                        'source = "csv"',
+                        'csv_path = "data/demo.csv"',
+                        'timeframe = "30min"',
+                        "",
+                        "[[data.instruments]]",
+                        'symbol = "SBER"',
+                        'instrument_type = "stock"',
+                        "lot_size = 1",
+                        "",
+                        "[strategy]",
+                        "min_liquidity_rub = 1.0",
+                        "trailing_profit_trigger_rub = 50.0",
+                        "trailing_profit_lock_ratio = 0.5",
+                        "",
+                        "[execution]",
+                        'mode = "local-paper"',
+                        "allow_live_trading = false",
+                        'state_path = "state/paper_state.json"',
+                        "",
+                        "[backtest]",
+                        "initial_cash = 100000",
+                        "",
+                        "[reporting]",
+                        'output_dir = "runs"',
+                        "",
+                        "[research]",
+                        "",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            config = load_config(config_path)
+            instrument = Instrument(symbol="SBER", instrument_type=InstrumentType.STOCK, lot_size=1)
+            state_path = config.resolve_path(config.execution.state_path)
+            broker = LocalPaperBroker.fresh(100_000, slippage_bps=0, commission_bps=0)
+            broker.open_position(
+                Signal(
+                    instrument=instrument,
+                    direction=SignalDirection.LONG,
+                    strength=0.8,
+                    entry_price=100.0,
+                    stop_price=95.0,
+                    take_profit=120.0,
+                    reason="bootstrap-position",
+                ),
+                10,
+                datetime(2025, 1, 1, 10, 0, tzinfo=timezone.utc),
+            )
+            broker.save(state_path)
+
+            latest_candle = Candle(
+                timestamp=datetime(2025, 1, 1, 11, 0, tzinfo=timezone.utc),
+                open=100.0,
+                high=107.0,
+                low=101.0,
+                close=106.0,
+                volume=5_000_000,
+            )
+            orchestrator = _PaperCycleOrchestrator(
+                config,
+                _FakeProvider([instrument], {"SBER": [latest_candle]}),
+            )
+
+            orchestrator.run_paper_cycle()
+            reloaded = LocalPaperBroker.load(
+                state_path,
+                initial_cash=config.backtest.initial_cash,
+                slippage_bps=config.execution.slippage_bps,
+                commission_bps=config.execution.commission_bps,
+            )
+
+            self.assertEqual(len(reloaded.trades), 0)
+            self.assertEqual(len(reloaded.portfolio.positions), 1)
+            position = reloaded.portfolio.positions["SBER"]
+            self.assertEqual(position.current_price, 106.0)
+            self.assertEqual(position.stop_price, 103.0)
+            self.assertEqual(position.take_profit, 120.0)
+
+            protect_events = [event for event in reloaded.events if event.get("action") == "protect"]
+            self.assertEqual(len(protect_events), 1)
+            self.assertEqual(protect_events[0]["timestamp"], latest_candle.timestamp.isoformat())
+            self.assertEqual(protect_events[0]["reason"], "trailing-profit-protection")
+            self.assertEqual(protect_events[0]["stop_price"], 103.0)
+
+
 if __name__ == "__main__":
     unittest.main()
