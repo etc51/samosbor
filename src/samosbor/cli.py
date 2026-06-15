@@ -33,6 +33,21 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("optimize", help="Search parameter sets and instrument subsets")
     subparsers.add_parser("monte-carlo", help="Run Monte Carlo robustness analysis on a fresh backtest")
     subparsers.add_parser("walk-forward", help="Run rolling walk-forward validation with re-optimization")
+    bootstrap_feedback_parser = subparsers.add_parser(
+        "bootstrap-entry-feedback",
+        help="Backfill the shadow signal feedback journal from recent historical candles",
+    )
+    bootstrap_feedback_parser.add_argument(
+        "--replace-existing",
+        action="store_true",
+        help="Rebuild the signal feedback journal from scratch",
+    )
+    bootstrap_feedback_parser.add_argument(
+        "--max-signals-per-symbol",
+        type=int,
+        default=0,
+        help="Optional cap on generated resolved signals per symbol, 0 means no cap",
+    )
     tune_schedule_parser = subparsers.add_parser(
         "tune-entry-hours",
         help="Recommend safer entry hours from recent paper-trading results",
@@ -181,6 +196,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "walk-forward":
         print(json.dumps(orchestrator.run_walk_forward(), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "bootstrap-entry-feedback":
+        print(
+            json.dumps(
+                orchestrator.bootstrap_entry_feedback(
+                    replace_existing=args.replace_existing,
+                    max_signals_per_symbol=args.max_signals_per_symbol,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
     if args.command == "tune-entry-hours":
         print(

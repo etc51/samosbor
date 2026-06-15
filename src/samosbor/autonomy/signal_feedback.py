@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from ..domain import Candle, Signal, SignalDirection, TradeRecord
+from ..domain import Candle, Instrument, Signal, SignalDirection, TradeRecord
 
 
 def signal_feedback_path(state_path: Path) -> Path:
@@ -106,6 +106,80 @@ def resolved_feedback_to_trades(payload: dict[str, list[dict[str, object]]]) -> 
             )
         )
     return trades
+
+
+def simulate_signal_feedback(
+    signal: Signal,
+    *,
+    timestamp: datetime,
+    future_candles: list[Candle],
+    horizon_bars: int,
+) -> dict[str, object] | None:
+    item = {
+        "symbol": signal.instrument.symbol,
+        "direction": signal.direction.value,
+        "created_at": timestamp.isoformat(),
+        "entry_price": signal.entry_price,
+        "stop_price": signal.stop_price,
+        "take_profit": signal.take_profit,
+        "signal_strength": signal.strength,
+        "horizon_bars": max(1, horizon_bars),
+    }
+    return _resolve_signal_item(item, future_candles)
+
+
+def backfill_signal_feedback_for_symbol(
+    payload: dict[str, list[dict[str, object]]],
+    *,
+    instrument: Instrument,
+    candles: list[Candle],
+    strategy,
+    warmup_bars: int,
+    horizon_bars: int,
+    max_signals: int = 0,
+) -> int:
+    strategy.prepare_history(instrument, candles)
+    existing_signatures = {
+        (str(item["symbol"]), str(item["direction"]), str(item["created_at"]))
+        for item in payload.get("pending", []) + payload.get("resolved", [])
+    }
+    generated = 0
+    next_allowed_index = max(0, warmup_bars - 1)
+
+    for index in range(max(0, warmup_bars - 1), len(candles) - 1):
+        if index < next_allowed_index:
+            continue
+        history = candles[: index + 1]
+        latest = candles[index]
+        signal = strategy.generate_signal(instrument, history)
+        if signal is None or not strategy.allows_entry_at(latest.timestamp):
+            continue
+        signature = (
+            signal.instrument.symbol,
+            signal.direction.value,
+            latest.timestamp.isoformat(),
+        )
+        if signature in existing_signatures:
+            continue
+
+        resolved = simulate_signal_feedback(
+            signal,
+            timestamp=latest.timestamp,
+            future_candles=candles[index + 1 :],
+            horizon_bars=horizon_bars,
+        )
+        if resolved is None:
+            continue
+
+        payload.setdefault("resolved", []).append(resolved)
+        existing_signatures.add(signature)
+        generated += 1
+        next_allowed_index = index + max(1, int(resolved.get("bars_held", 1)))
+        if max_signals > 0 and generated >= max_signals:
+            break
+
+    payload["resolved"].sort(key=lambda item: str(item["created_at"]))
+    return generated
 
 
 def default_signal_horizon_bars(timeframe: str) -> int:

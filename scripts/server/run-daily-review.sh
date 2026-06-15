@@ -8,6 +8,7 @@ source .venv/bin/activate
 
 python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml paper-report --days 1
 python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-hours --days 45 --min-trades-per-hour 3
+python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml bootstrap-entry-feedback
 python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-quality --lookback-trades 40 --min-trades 8
 python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-strategy
 python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-exits

@@ -14,6 +14,7 @@ from .autonomy.entry_quality_tuning import (
     write_entry_quality_tuning,
 )
 from .autonomy.signal_feedback import (
+    backfill_signal_feedback_for_symbol,
     default_signal_horizon_bars,
     load_signal_feedback,
     record_shadow_signal,
@@ -523,6 +524,62 @@ class TradingOrchestrator:
         write_entry_quality_tuning(output_dir, payload)
         payload["output_dir"] = str(output_dir)
         return payload
+
+    def bootstrap_entry_feedback(
+        self,
+        *,
+        replace_existing: bool = False,
+        max_signals_per_symbol: int = 0,
+    ) -> dict[str, object]:
+        assert_paper_only_mode(
+            self.config.execution.mode,
+            allow_live_trading=self.config.execution.allow_live_trading,
+            live_flag=False,
+        )
+        _, instruments, candles_by_symbol, _ = self._load_market_bundle()
+        state_path = self.config.resolve_path(self.config.execution.state_path)
+        feedback_path = signal_feedback_path(state_path)
+        payload = {"pending": [], "resolved": []} if replace_existing else load_signal_feedback(feedback_path)
+        shadow_strategy = TrendFollowingStrategy(
+            replace(self.config.strategy, min_signal_strength=0.0),
+            timeframe=self.config.data.timeframe,
+        )
+        horizon_bars = default_signal_horizon_bars(self.config.data.timeframe)
+        counts: dict[str, int] = {}
+        generated_total = 0
+
+        for instrument in instruments:
+            candles = candles_by_symbol.get(instrument.symbol, [])
+            if len(candles) <= self.config.backtest.warmup_bars:
+                counts[instrument.symbol] = 0
+                continue
+            generated = backfill_signal_feedback_for_symbol(
+                payload,
+                instrument=instrument,
+                candles=candles,
+                strategy=shadow_strategy,
+                warmup_bars=self.config.backtest.warmup_bars,
+                horizon_bars=horizon_bars,
+                max_signals=max_signals_per_symbol,
+            )
+            counts[instrument.symbol] = generated
+            generated_total += generated
+
+        save_signal_feedback(feedback_path, payload)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "entry-feedback-bootstrap" / stamp
+        result = {
+            "feedback_path": str(feedback_path),
+            "replace_existing": replace_existing,
+            "max_signals_per_symbol": max_signals_per_symbol,
+            "generated_total": generated_total,
+            "generated_by_symbol": counts,
+            "pending_signals": len(payload.get("pending", [])),
+            "resolved_signals": len(payload.get("resolved", [])),
+        }
+        write_json_payload(output_dir / "bootstrap_summary.json", result)
+        result["output_dir"] = str(output_dir)
+        return result
 
     def run_paper_cycle(self) -> dict[str, object]:
         assert_paper_only_mode(

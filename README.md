@@ -107,6 +107,12 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-quality --lookback-trades 40 --min-trades 8
 ```
 
+Если нужно сразу наполнить shadow feedback из недавней истории, а не ждать новые сделки:
+
+```powershell
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml bootstrap-entry-feedback
+```
+
 ## Server Runtime
 
 Для 24/7 серверного paper-режима подготовлены:
@@ -138,6 +144,7 @@ SSL_TBANK_VERIFY=True
 - для entry-quality autotune сделки теперь сохраняют `signal_strength`, а отдельный paper-feedback контур предлагает `min_signal_strength` только когда накоплено достаточно закрытых paper-сделок
 - paper-cycle теперь ведёт отдельный shadow signal journal рядом со state-файлом и постепенно размечает сигналы как `take-profit`, `stop-loss` или `expired`
 - `tune-entry-quality` сначала пытается учиться на resolved signal feedback, а если его ещё нет, честно откатывается к обычным closed trades
+- `bootstrap-entry-feedback` позволяет безопасно прогреть этот journal на исторических свечах без отправки ордеров и без вмешательства в paper-позиции
 
 ## Research На Данных С D:
 

@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 
 from samosbor.autonomy.signal_feedback import (
+    backfill_signal_feedback_for_symbol,
     default_signal_horizon_bars,
     load_signal_feedback,
     record_shadow_signal,
@@ -18,6 +19,27 @@ from samosbor.domain import Candle, Instrument, InstrumentType, Signal, SignalDi
 
 
 class SignalFeedbackTest(unittest.TestCase):
+    class FakeStrategy:
+        def prepare_history(self, instrument, candles):
+            return None
+
+        def generate_signal(self, instrument, history):
+            if len(history) not in {3, 4, 6}:
+                return None
+            last = history[-1]
+            return Signal(
+                instrument=instrument,
+                direction=SignalDirection.LONG,
+                strength=0.6 + len(history) * 0.01,
+                entry_price=last.close,
+                stop_price=last.close - 1.0,
+                take_profit=last.close + 1.0,
+                reason="test",
+            )
+
+        def allows_entry_at(self, timestamp):
+            return True
+
     def test_signal_feedback_path_uses_state_stem(self):
         path = signal_feedback_path(Path("state/server_state.json"))
         self.assertEqual(str(path).replace("\\", "/"), "state/server_state_signal_feedback.json")
@@ -113,6 +135,38 @@ class SignalFeedbackTest(unittest.TestCase):
     def test_default_signal_horizon_bars_has_hourly_default(self):
         self.assertEqual(default_signal_horizon_bars("hour"), 24)
         self.assertEqual(default_signal_horizon_bars("unknown"), 24)
+
+    def test_backfill_signal_feedback_for_symbol_generates_resolved_items(self):
+        instrument = Instrument(symbol="CNYRUBF", instrument_type=InstrumentType.FUTURE, lot_size=1)
+        candles = []
+        ts = datetime(2025, 1, 1, 10, 0, tzinfo=timezone.utc)
+        prices = [100.0, 100.5, 101.0, 102.2, 102.8, 103.4, 104.5]
+        for price in prices:
+            candles.append(
+                Candle(
+                    timestamp=ts,
+                    open=price - 0.2,
+                    high=price + 0.6,
+                    low=price - 0.6,
+                    close=price,
+                    volume=1_000_000,
+                )
+            )
+            ts += timedelta(hours=1)
+
+        payload = {"pending": [], "resolved": []}
+        generated = backfill_signal_feedback_for_symbol(
+            payload,
+            instrument=instrument,
+            candles=candles,
+            strategy=self.FakeStrategy(),
+            warmup_bars=3,
+            horizon_bars=2,
+        )
+
+        self.assertEqual(generated, 3)
+        self.assertEqual(len(payload["resolved"]), 3)
+        self.assertTrue(all(item["outcome_reason"] in {"take-profit", "expired"} for item in payload["resolved"]))
 
 
 if __name__ == "__main__":
