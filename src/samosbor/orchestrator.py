@@ -14,6 +14,8 @@ from .autonomy.entry_quality_tuning import (
     write_entry_quality_tuning,
 )
 from .autonomy.effective_config import (
+    base_strategy_values,
+    build_effective_config_guardrail_payload,
     build_effective_strategy_overrides,
     default_effective_config_path,
     summarize_effective_config_sources,
@@ -602,7 +604,27 @@ class TradingOrchestrator:
         target_path = Path(output_path).resolve() if output_path else default_effective_config_path(source_path)
         autotune_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune"
         sources = summarize_effective_config_sources(autotune_dir)
-        overrides = build_effective_strategy_overrides(self.config)
+        broker = self._load_paper_broker()
+        rollback_report = build_paper_report_payload(
+            broker.portfolio,
+            broker.trades,
+            timezone_name=self.config.app.timezone,
+            days=3,
+        )
+        guardrail = build_effective_config_guardrail_payload(
+            base_values=base_strategy_values(self.config),
+            source_summaries=sources,
+            paper_report=rollback_report,
+            guardrail_days=3,
+            min_recent_trades=6,
+        )
+        if guardrail["rollback_to_base"]:
+            overrides = base_strategy_values(self.config)
+        else:
+            overrides = build_effective_strategy_overrides(
+                self.config,
+                source_summaries=sources,
+            )
         write_effective_config(
             source_path,
             target_path,
@@ -617,6 +639,7 @@ class TradingOrchestrator:
             "allow_live_trading": self.config.execution.allow_live_trading,
             "applied_strategy_overrides": overrides,
             "sources": sources,
+            "rollback_guardrail": guardrail,
         }
         write_json_payload(output_dir / "effective_config.json", result)
         result["output_dir"] = str(output_dir)

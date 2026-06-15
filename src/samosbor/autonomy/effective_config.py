@@ -30,10 +30,32 @@ def default_effective_config_path(config_path: str | Path) -> Path:
     return path.with_name(f"{path.stem}.effective{suffix}")
 
 
-def build_effective_strategy_overrides(config: AppConfig) -> dict[str, object]:
-    autotune_dir = config.resolve_path(config.reporting.output_dir) / "autotune"
+def base_strategy_values(config: AppConfig) -> dict[str, object]:
+    return {
+        "style": config.strategy.style,
+        "fast_window": config.strategy.fast_window,
+        "slow_window": config.strategy.slow_window,
+        "require_breakout": config.strategy.require_breakout,
+        "atr_stop_multiple": config.strategy.atr_stop_multiple,
+        "reward_to_risk": config.strategy.reward_to_risk,
+        "min_signal_strength": config.strategy.min_signal_strength,
+        "min_trend_strength": config.strategy.min_trend_strength,
+        "adx_min": config.strategy.adx_min,
+        "allowed_entry_hours": list(config.strategy.allowed_entry_hours),
+    }
+
+
+def build_effective_strategy_overrides(
+    config: AppConfig,
+    *,
+    source_summaries: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    summaries = source_summaries
+    if summaries is None:
+        autotune_dir = config.resolve_path(config.reporting.output_dir) / "autotune"
+        summaries = summarize_effective_config_sources(autotune_dir)
     overrides: dict[str, object] = {}
-    for item in summarize_effective_config_sources(autotune_dir):
+    for item in summaries:
         overrides.update(item["selected_values"])
     return overrides
 
@@ -65,6 +87,81 @@ def summarize_effective_config_sources(autotune_dir: Path) -> list[dict[str, obj
             value_builder=_entry_quality_values,
         ),
     ]
+
+
+def build_effective_config_guardrail_payload(
+    *,
+    base_values: dict[str, object],
+    source_summaries: list[dict[str, object]],
+    paper_report: dict[str, object],
+    guardrail_days: int = 3,
+    min_recent_trades: int = 6,
+) -> dict[str, object]:
+    active_sources: list[str] = []
+    active_override_keys: list[str] = []
+    for source in source_summaries:
+        changed_keys = [
+            key
+            for key, value in source.get("selected_values", {}).items()
+            if base_values.get(key) != value
+        ]
+        if changed_keys:
+            active_sources.append(str(source.get("source", "")))
+            active_override_keys.extend(changed_keys)
+
+    summary = dict(paper_report.get("summary", {}))
+    comparison = dict(paper_report.get("comparison_to_previous_window", {}))
+    previous_summary = dict(comparison.get("summary", {}))
+    delta = dict(comparison.get("delta", {}))
+    portfolio = dict(paper_report.get("portfolio", {}))
+
+    trades = int(summary.get("trades", 0))
+    net_pnl = float(summary.get("net_pnl_rub", 0.0))
+    expectancy = float(summary.get("expectancy_rub", 0.0))
+    profit_factor = float(summary.get("profit_factor", 0.0))
+    previous_trades = int(previous_summary.get("trades", 0))
+    delta_net_pnl = float(delta.get("net_pnl_rub", 0.0))
+    trading_halted = bool(portfolio.get("trading_halted", False))
+
+    enough_trades = trades >= min_recent_trades
+    recent_window_negative = net_pnl < 0 and expectancy < 0 and profit_factor < 1.0
+    deterioration_confirmed = delta_net_pnl < 0 or previous_trades == 0
+    rollback_to_base = bool(active_sources) and (
+        trading_halted or (enough_trades and recent_window_negative and deterioration_confirmed)
+    )
+
+    if rollback_to_base and trading_halted:
+        reason = "portfolio drawdown halt is active while autotune overrides are applied"
+    elif rollback_to_base:
+        reason = "recent paper window deteriorated while autotune overrides were active"
+    elif not active_sources:
+        reason = "no active overrides versus the base runtime config"
+    elif not enough_trades:
+        reason = f"need at least {min_recent_trades} recent trades before rollback guardrail can judge overrides"
+    elif not recent_window_negative:
+        reason = "recent paper window does not show a broad enough deterioration"
+    else:
+        reason = "recent paper window is weak but not worse than the previous comparison window"
+
+    return {
+        "rollback_to_base": rollback_to_base,
+        "reason": reason,
+        "guardrails": {
+            "days": guardrail_days,
+            "min_recent_trades": min_recent_trades,
+            "require_negative_net_pnl": True,
+            "require_negative_expectancy": True,
+            "require_profit_factor_below_one": True,
+            "require_worse_than_previous_window": True,
+            "always_rollback_if_trading_halted": True,
+        },
+        "active_sources": active_sources,
+        "active_override_keys": sorted(set(active_override_keys)),
+        "recent_summary": summary,
+        "previous_summary": previous_summary,
+        "comparison_delta": delta,
+        "trading_halted": trading_halted,
+    }
 
 
 def write_effective_config(

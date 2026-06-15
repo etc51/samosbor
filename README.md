@@ -153,6 +153,7 @@ SSL_TBANK_VERIFY=True
 - `tune-entry-quality` сначала пытается учиться на resolved signal feedback, а если его ещё нет, честно откатывается к обычным closed trades
 - `bootstrap-entry-feedback` позволяет безопасно прогреть этот journal на исторических свечах без отправки ордеров и без вмешательства в paper-позиции
 - `refresh-effective-config` собирает следующую runtime-конфигурацию из последних entry/exit/strategy/schedule autotune результатов, не переписывая базовый серверный TOML
+- тот же `refresh-effective-config` теперь пишет `rollback_guardrail` и при активных autotune-overrides может автоматически вернуться к базовому runtime-профилю, если недавнее paper-окно стало отрицательным или сработал drawdown halt
 
 ## Research На Данных С D:
 

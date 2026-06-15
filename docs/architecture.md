@@ -213,6 +213,7 @@ CLI-сценарии:
 - отдельная команда `refresh-effective-config` собирает производный runtime TOML из последних autotune-артефактов, не трогая базовый config
 - тот же runtime теперь сохраняет `signal_strength` в paper state и closed trades, чтобы feedback loop мог работать по фактическим входам
 - paper-cycle также ведёт отдельный shadow signal feedback journal, где кандидатные сигналы получают outcome по последующим свечам даже если реальная позиция не открывалась
+- effective-config слой теперь дополнительно оценивает недавнее paper-окно и при явном ухудшении под активными overrides может автоматически откатиться к базовому server profile
 - отдельная команда `bootstrap-entry-feedback` может безопасно прогреть этот journal на уже доступной исторической выборке
 - daily-review также запускает `tune-entry-quality`, который анализирует последние закрытые paper-сделки и предлагает candidate patch по `min_signal_strength`
 - тот же daily-review timer запускает walk-forward-based `tune-strategy`, который предлагает только candidate patch и не меняет боевой TOML сам
