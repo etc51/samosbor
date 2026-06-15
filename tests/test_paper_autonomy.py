@@ -156,6 +156,7 @@ class EntryScheduleAutonomyTest(unittest.TestCase):
         )
 
         self.assertTrue(payload["changed"])
+        self.assertEqual(payload["evidence_source"], "closed-trades")
         self.assertEqual(payload["removals"], [9])
         self.assertEqual(payload["additions"], [12])
         self.assertEqual(payload["proposed_hours"], [10, 11, 12])
@@ -221,6 +222,7 @@ class EntrySymbolAutonomyTest(unittest.TestCase):
             trades,
             timezone_name="Europe/Moscow",
             current_blocked_symbols=[],
+            evidence_source="signal-feedback",
             report_date=date(2025, 1, 31),
             lookback_days=45,
             min_trades_per_symbol=4,
@@ -229,6 +231,7 @@ class EntrySymbolAutonomyTest(unittest.TestCase):
         )
 
         self.assertTrue(payload["changed"])
+        self.assertEqual(payload["evidence_source"], "signal-feedback")
         self.assertEqual(payload["additions"], ["IMOEXF"])
         self.assertEqual(payload["proposed_blocked_symbols"], ["IMOEXF"])
 

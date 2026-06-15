@@ -45,6 +45,7 @@ class FakeNightlyOrchestrator(TradingOrchestrator):
     ):
         self.calls.append("tune-entry-hours")
         return {
+            "evidence_source": "signal-feedback",
             "changed": True,
             "reason": "hours updated from paper results",
             "current_hours": [9, 10],
@@ -76,6 +77,7 @@ class FakeNightlyOrchestrator(TradingOrchestrator):
     ):
         self.calls.append("tune-entry-symbols")
         return {
+            "evidence_source": "signal-feedback",
             "changed": False,
             "reason": "insufficient evidence for symbol restriction change",
             "current_blocked_symbols": [],
@@ -274,7 +276,9 @@ class NightlyAutonomyTest(unittest.TestCase):
             )
             self.assertEqual(result["analysis"]["paper_report"]["summary"]["trades"], 6)
             self.assertEqual(result["restrictions"]["entry_schedule"]["proposed_hours"], [10, 12])
+            self.assertEqual(result["restrictions"]["entry_schedule"]["evidence_source"], "signal-feedback")
             self.assertEqual(result["restrictions"]["entry_symbols"]["proposed_blocked_symbols"], [])
+            self.assertEqual(result["restrictions"]["entry_symbols"]["evidence_source"], "signal-feedback")
             self.assertEqual(result["research"]["optimizer"]["evaluated_candidates"], 24)
             self.assertEqual(result["research"]["walk_forward"]["summary"]["folds_evaluated"], 4)
             self.assertEqual(result["research"]["monte_carlo"]["monte_carlo_summary"]["probability_positive_pct"], 64.0)

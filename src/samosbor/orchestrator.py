@@ -498,12 +498,17 @@ class TradingOrchestrator:
         max_hours_to_remove: int = 2,
     ) -> dict[str, object]:
         broker = self._load_paper_broker()
+        feedback = load_signal_feedback(signal_feedback_path(self.config.resolve_path(self.config.execution.state_path)))
+        feedback_trades = resolved_feedback_to_trades(feedback)
+        evidence_trades = feedback_trades or broker.trades
+        evidence_source = "signal-feedback" if feedback_trades else "closed-trades"
         parsed_date = date.fromisoformat(report_date) if report_date else None
         payload = build_entry_schedule_tuning_payload(
             broker.portfolio,
-            broker.trades,
+            evidence_trades,
             timezone_name=timezone_name or self.config.app.timezone,
             current_hours=self.config.strategy.allowed_entry_hours,
+            evidence_source=evidence_source,
             report_date=parsed_date,
             lookback_days=lookback_days,
             min_trades_per_hour=min_trades_per_hour,
@@ -559,12 +564,17 @@ class TradingOrchestrator:
         max_total_blocked_symbols: int = 4,
     ) -> dict[str, object]:
         broker = self._load_paper_broker()
+        feedback = load_signal_feedback(signal_feedback_path(self.config.resolve_path(self.config.execution.state_path)))
+        feedback_trades = resolved_feedback_to_trades(feedback)
+        evidence_trades = feedback_trades or broker.trades
+        evidence_source = "signal-feedback" if feedback_trades else "closed-trades"
         parsed_date = date.fromisoformat(report_date) if report_date else None
         payload = build_entry_symbol_tuning_payload(
             broker.portfolio,
-            broker.trades,
+            evidence_trades,
             timezone_name=timezone_name or self.config.app.timezone,
             current_blocked_symbols=self.config.strategy.blocked_symbols,
+            evidence_source=evidence_source,
             report_date=parsed_date,
             lookback_days=lookback_days,
             min_trades_per_symbol=min_trades_per_symbol,
@@ -1039,6 +1049,7 @@ def _paper_report_view(payload: dict[str, object]) -> dict[str, object]:
 def _entry_schedule_view(payload: dict[str, object]) -> dict[str, object]:
     return {
         "output_dir": payload.get("output_dir", ""),
+        "evidence_source": payload.get("evidence_source", ""),
         "changed": payload.get("changed", False),
         "reason": payload.get("reason", ""),
         "current_hours": payload.get("current_hours", []),
@@ -1051,6 +1062,7 @@ def _entry_schedule_view(payload: dict[str, object]) -> dict[str, object]:
 def _entry_symbols_view(payload: dict[str, object]) -> dict[str, object]:
     return {
         "output_dir": payload.get("output_dir", ""),
+        "evidence_source": payload.get("evidence_source", ""),
         "changed": payload.get("changed", False),
         "reason": payload.get("reason", ""),
         "current_blocked_symbols": payload.get("current_blocked_symbols", []),
@@ -1183,8 +1195,8 @@ def _render_nightly_autonomy_markdown(payload: dict[str, object]) -> str:
         f"- Profit factor: {analysis['summary']['profit_factor']}",
         "",
         "## Restrictions",
-        f"- Entry hours changed: {restrictions['entry_schedule']['changed']} ({restrictions['entry_schedule']['reason']})",
-        f"- Entry symbols changed: {restrictions['entry_symbols']['changed']} ({restrictions['entry_symbols']['reason']})",
+        f"- Entry hours changed: {restrictions['entry_schedule']['changed']} ({restrictions['entry_schedule']['reason']}, source={restrictions['entry_schedule']['evidence_source']})",
+        f"- Entry symbols changed: {restrictions['entry_symbols']['changed']} ({restrictions['entry_symbols']['reason']}, source={restrictions['entry_symbols']['evidence_source']})",
         f"- Entry quality changed: {restrictions['entry_quality']['changed']} ({restrictions['entry_quality']['reason']})",
         f"- Signal feedback resolved: {restrictions['signal_feedback_bootstrap']['resolved_signals']}",
         "",
