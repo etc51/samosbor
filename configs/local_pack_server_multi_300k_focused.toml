@@ -11,9 +11,10 @@ app_name = "samosbor"
 ssl_verify_env = "SSL_TBANK_VERIFY"
 
 [data]
-source = "tbank"
+source = "moex-data-pack"
 timeframe = "hour"
-history_days = 120
+history_days = 300
+local_data_pack_path = "D:/3_pips_x2_project/moex_futures_data_pack"
 
 [[data.instruments]]
 symbol = "USDRUBF"
@@ -21,6 +22,18 @@ instrument_type = "future"
 
 [[data.instruments]]
 symbol = "CNYRUBF"
+instrument_type = "future"
+
+[[data.instruments]]
+symbol = "EURRUBF"
+instrument_type = "future"
+
+[[data.instruments]]
+symbol = "GLDRUBF"
+instrument_type = "future"
+
+[[data.instruments]]
+symbol = "IMOEXF"
 instrument_type = "future"
 
 [strategy]
@@ -31,14 +44,14 @@ atr_window = 14
 volume_window = 20
 breakout_window = 20
 require_breakout = false
-atr_stop_multiple = 1.25
-reward_to_risk = 1.5
+atr_stop_multiple = 1.5
+reward_to_risk = 2.0
 min_signal_strength = 0.0
 min_trend_strength = 0.002
 min_liquidity_rub = 1000000
 allow_shorts = true
 adx_window = 14
-adx_min = 15.0
+adx_min = 20.0
 rsi_window = 14
 rsi_long_min = 50.0
 rsi_long_max = 75.0
@@ -48,7 +61,6 @@ macd_fast = 12
 macd_slow = 26
 macd_signal = 9
 schedule_timezone = "Europe/Moscow"
-# Start broad across the liquid MOEX futures session; nightly autonomy can narrow this later.
 allowed_entry_hours = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]
 allowed_entry_weekdays = [0, 1, 2, 3, 4]
 
@@ -57,7 +69,7 @@ max_risk_per_trade = 0.015
 max_gross_exposure = 2.0
 max_drawdown = 0.12
 cash_reserve_ratio = 0.0
-max_positions = 2
+max_positions = 4
 kelly_lookback_trades = 20
 min_trades_for_kelly = 8
 
@@ -65,7 +77,7 @@ min_trades_for_kelly = 8
 mode = "local-paper"
 slippage_bps = 2.0
 commission_bps = 2.0
-state_path = "state/server_tbank_multi_300k_state.json"
+state_path = "state/local_pack_server_multi_300k_focused_state.json"
 allow_live_trading = false
 
 [backtest]
@@ -80,9 +92,9 @@ write_csv = true
 strategy_styles = ["ema_adx_macd"]
 fast_windows = [10]
 slow_windows = [40]
-require_breakout_values = [false, true]
-atr_stop_multipliers = [1.25, 1.5, 1.75, 2.0]
-reward_to_risk_values = [1.5, 2.0, 2.5]
+require_breakout_values = [false]
+atr_stop_multipliers = [1.25, 1.5]
+reward_to_risk_values = [1.5, 2.0]
 trend_strength_values = [0.002]
 adx_min_values = [15.0, 20.0]
 subset_min_size = 1

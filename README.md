@@ -24,6 +24,8 @@
 - `configs/paper.toml` — пример конфигурации
 - `configs/local_pack_research.toml` — research-конфиг для локального архива свечей на `D:`
 - `configs/local_pack_ta_research.toml` — сфокусированный TA-search по сильным MOEX futures
+- `configs/local_pack_server_multi_300k.toml` — общий research-профиль под server-runtime, budget `300 000 RUB` и target `3000 RUB/мес`
+- `configs/local_pack_server_pair_cny_usd_candidate.toml` — evidence-backed candidate для пары `CNYRUBF + USDRUBF`
 - `configs/local_pack_usdrubf_candidate.toml` — конфиг лучшего кандидата из локальной оптимизации
 - `configs/local_pack_cnyrubf_ta_candidate.toml` — TA-кандидат на `CNYRUBF`
 - `configs/local_pack_cnyrubf_ta_walk_forward.toml` — walk-forward валидация для `CNYRUBF` TA-кандидата
@@ -136,7 +138,7 @@ SSL_TBANK_VERIFY=True
 Логика расписания:
 
 - systemd timer запускает `paper-cycle` каждые `5` минут в широкое MOEX futures-окно
-- активный server-runtime сейчас следит сразу за `USDRUBF`, `CNYRUBF`, `IMOEXF`, `SBRF`, `GAZR`, `LKOH`
+- активный server-runtime сейчас торгует evidence-backed pair `USDRUBF + CNYRUBF`, выбранную на локальном архиве через optimizer + walk-forward
 - входы по умолчанию открыты на всю основную liquid-сессию `09:00-22:59 MSK`, а nightly-autonomy уже может позже сузить часы по фактической статистике paper-сделок
 
 Автообновление:
@@ -154,6 +156,7 @@ SSL_TBANK_VERIFY=True
 - рабочий target теперь привязан к прибыли `2000-4000 RUB/мес`
 - в активном server-runtime и nightly-autonomy используется midpoint `3000 RUB/мес`
 - при виртуальном paper-капитале `300 000 RUB` это соответствует целевым `1.0%` среднего месячного дохода
+- последний focused research для server-runtime показал, что pair `CNYRUBF + USDRUBF` на текущем TA-профиле выглядит сильнее широкого multi-futures baseline
 - для exit autotune серверный research-grid теперь перебирает несколько соседних значений `atr_stop_multiple` и `reward_to_risk`, но применяет только candidate patch под guardrails
 - для entry-quality autotune сделки теперь сохраняют `signal_strength`, а отдельный paper-feedback контур предлагает `min_signal_strength` только когда накоплено достаточно закрытых paper-сделок
 - paper-cycle теперь ведёт отдельный shadow signal journal рядом со state-файлом и постепенно размечает сигналы как `take-profit`, `stop-loss` или `expired`
