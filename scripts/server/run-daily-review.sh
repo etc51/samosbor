@@ -8,10 +8,17 @@ source .venv/bin/activate
 
 BASE_CONFIG="configs/server_tbank_stocks_intraday_300k_focused.toml"
 EFFECTIVE_CONFIG="configs/server_tbank_stocks_intraday_300k_focused.effective.toml"
+AUTONOMY_CONFIG="configs/server_tbank_stocks_intraday_300k_focused.autonomy.toml"
+AUTONOMY_PARQUET_DIR="data/server_moex_strategy_lab_data_processed"
 ACTIVE_CONFIG="$EFFECTIVE_CONFIG"
 
 if [[ ! -f "$ROOT_DIR/$ACTIVE_CONFIG" ]]; then
   python -m samosbor.cli --config "$BASE_CONFIG" refresh-effective-config --output "$EFFECTIVE_CONFIG"
 fi
 
-python -m samosbor.cli --config "$ACTIVE_CONFIG" nightly-autonomy --base-config "$BASE_CONFIG" --effective-output "$EFFECTIVE_CONFIG"
+python scripts/server/build-offline-autonomy-config.py \
+  --source "$ACTIVE_CONFIG" \
+  --output "$AUTONOMY_CONFIG" \
+  --parquet-dir "$AUTONOMY_PARQUET_DIR"
+
+python -m samosbor.cli --config "$AUTONOMY_CONFIG" nightly-autonomy --base-config "$BASE_CONFIG" --effective-output "$EFFECTIVE_CONFIG"
