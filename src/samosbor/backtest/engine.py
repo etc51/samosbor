@@ -76,6 +76,13 @@ class BacktestEngine:
                             timestamp=timestamp,
                             reason=reason,
                         )
+                    elif self.strategy.should_force_flatten_at(timestamp):
+                        broker.close_position(
+                            symbol,
+                            price=candle.close,
+                            timestamp=timestamp,
+                            reason=ExitReason.SESSION_FLAT,
+                        )
 
                 position = broker.portfolio.positions.get(symbol)
                 if len(history) >= self.backtest.warmup_bars and not broker.portfolio.trading_halted:
@@ -90,14 +97,15 @@ class BacktestEngine:
                             )
                             position = None
                         if position is None:
-                            if not self.strategy.allows_entry_at(timestamp):
+                            entry_block_reason = self.strategy.entry_block_reason_at(timestamp)
+                            if entry_block_reason is not None:
                                 events.append(
                                     {
                                         "timestamp": timestamp.isoformat(),
                                         "symbol": symbol,
                                         "action": "signal",
                                         "approved": False,
-                                        "reason": "entry blocked by schedule",
+                                        "reason": entry_block_reason,
                                         "direction": signal.direction.value,
                                         "strength": signal.strength,
                                         "quantity_lots": 0,

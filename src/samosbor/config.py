@@ -44,6 +44,7 @@ class DataSection:
     timeframe: str = "hour"
     history_days: int = 120
     csv_path: str = ""
+    parquet_dir_path: str = ""
     local_data_pack_path: str = ""
     instruments: list[Instrument] = field(default_factory=list)
 
@@ -76,6 +77,8 @@ class StrategySection:
     schedule_timezone: str = "Europe/Moscow"
     allowed_entry_hours: list[int] = field(default_factory=list)
     allowed_entry_weekdays: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
+    forced_flat_hours: list[int] = field(default_factory=list)
+    forced_flat_weekdays: list[int] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -189,6 +192,7 @@ def load_config(config_path: str | Path) -> AppConfig:
         timeframe=data_raw.get("timeframe", "hour"),
         history_days=int(data_raw.get("history_days", 120)),
         csv_path=data_raw.get("csv_path", ""),
+        parquet_dir_path=data_raw.get("parquet_dir_path", ""),
         local_data_pack_path=data_raw.get("local_data_pack_path", ""),
         instruments=instruments,
     )

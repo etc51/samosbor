@@ -26,6 +26,7 @@ class ExitReason(str, Enum):
     STOP_LOSS = "stop-loss"
     TAKE_PROFIT = "take-profit"
     SIGNAL_FLIP = "signal-flip"
+    SESSION_FLAT = "session-flat"
     RISK_HALT = "risk-halt"
     END_OF_TEST = "end-of-test"
     MANUAL = "manual"

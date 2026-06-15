@@ -52,12 +52,31 @@ class TrendFollowingStrategy:
         }
 
     def allows_entry_at(self, timestamp: datetime) -> bool:
+        return self.entry_block_reason_at(timestamp) is None
+
+    def should_force_flatten_at(self, timestamp: datetime) -> bool:
+        if not self.config.forced_flat_hours:
+            return False
         localized = timestamp.astimezone(self.schedule_timezone)
-        if self.config.allowed_entry_weekdays and localized.weekday() not in self.config.allowed_entry_weekdays:
+        if (
+            self.config.forced_flat_weekdays
+            and localized.weekday() not in self.config.forced_flat_weekdays
+        ):
             return False
+        return localized.hour in self.config.forced_flat_hours
+
+    def entry_block_reason_at(self, timestamp: datetime) -> str | None:
+        if self.should_force_flatten_at(timestamp):
+            return "entry blocked by session-flat window"
+        localized = timestamp.astimezone(self.schedule_timezone)
+        if (
+            self.config.allowed_entry_weekdays
+            and localized.weekday() not in self.config.allowed_entry_weekdays
+        ):
+            return "entry blocked by weekday schedule"
         if self.config.allowed_entry_hours and localized.hour not in self.config.allowed_entry_hours:
-            return False
-        return True
+            return "entry blocked by hour schedule"
+        return None
 
     def _required_bars(self) -> int:
         required = max(

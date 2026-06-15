@@ -184,6 +184,29 @@ class TrendFollowingTATest(unittest.TestCase):
         self.assertTrue(strategy.allows_entry_at(allowed_timestamp))
         self.assertFalse(strategy.allows_entry_at(blocked_timestamp))
 
+    def test_session_flat_window_blocks_new_entries_and_matches_moscow_hour(self):
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                allowed_entry_hours=[10, 11, 12, 13, 14, 15, 16, 17],
+                allowed_entry_weekdays=[0, 1, 2, 3, 4],
+                forced_flat_hours=[18, 19, 20, 21, 22, 23],
+                forced_flat_weekdays=[0, 1, 2, 3, 4],
+                schedule_timezone="Europe/Moscow",
+            ),
+            timeframe="30min",
+        )
+
+        entry_timestamp = datetime(2025, 1, 1, 14, 0, tzinfo=timezone.utc)
+        forced_flat_timestamp = datetime(2025, 1, 1, 15, 0, tzinfo=timezone.utc)
+
+        self.assertTrue(strategy.allows_entry_at(entry_timestamp))
+        self.assertTrue(strategy.should_force_flatten_at(forced_flat_timestamp))
+        self.assertFalse(strategy.allows_entry_at(forced_flat_timestamp))
+        self.assertEqual(
+            strategy.entry_block_reason_at(forced_flat_timestamp),
+            "entry blocked by session-flat window",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

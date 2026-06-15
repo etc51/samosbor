@@ -8,6 +8,7 @@
 - `local-paper` — локальный виртуальный брокер для paper-trading и бэктестов
 - `tbank-sandbox` — песочница Т-Банка для виртуальных заявок
 - `live` — намеренно заблокирован в текущем прототипе
+- для intraday stock-профилей доступны `forced_flat_hours` / `forced_flat_weekdays`, чтобы принудительно закрывать позиции в конце сессии и не переносить их через ночь
 
 Цели текущей версии:
 
@@ -25,6 +26,7 @@
 - `configs/local_pack_research.toml` — research-конфиг для локального архива свечей на `D:`
 - `configs/local_pack_ta_research.toml` — сфокусированный TA-search по сильным MOEX futures
 - `configs/local_pack_server_multi_300k.toml` — общий research-профиль под server-runtime, budget `300 000 RUB` и target midpoint `3000 RUB/день`
+- `configs/local_pack_stocks_intraday_300k.toml` — локальный research-профиль под intraday MOEX stocks с обязательным закрытием позиций в late-session окне
 - `configs/local_pack_server_pair_cny_usd_candidate.toml` — evidence-backed candidate для пары `CNYRUBF + USDRUBF`
 - `configs/local_pack_usdrubf_candidate.toml` — конфиг лучшего кандидата из локальной оптимизации
 - `configs/local_pack_cnyrubf_ta_candidate.toml` — TA-кандидат на `CNYRUBF`
@@ -32,6 +34,7 @@
 - `configs/local_pack_cnyrubf_ta_aggressive.toml` — усиленный риск-профиль для лучшего `CNYRUBF`-кандидата
 - `configs/local_pack_fx_index_ta_aggressive.toml` — более агрессивный TA-портфель `USDRUBF + CNYRUBF + IMOEXF`
 - `configs/server_tbank_cnyrubf_premium.toml` — серверный multi-futures paper-runtime через T-Bank API с виртуальным бюджетом `300 000 RUB`
+- `configs/server_tbank_stocks_intraday_300k.toml` — отдельный stock intraday paper-runtime через T-Bank API
 - `docs/architecture.md` — архитектура и логика работы
 - `requirements-tbank.txt` — установка актуального SDK Т-Банка
 - `tests/` — smoke/unit tests

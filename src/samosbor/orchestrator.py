@@ -46,6 +46,7 @@ from .config import AppConfig
 from .config import StrategySection
 from .data.csv_provider import CSVMarketDataProvider
 from .data.moex_data_pack import MoexDataPackProvider
+from .data.parquet_directory import ParquetDirectoryProvider
 from .data.tbank import TBankMarketDataProvider
 from .domain import ExitReason
 from .execution.paper import LocalPaperBroker
@@ -87,6 +88,12 @@ class TradingOrchestrator:
     def _data_provider(self):
         if self.config.data.source == "csv":
             return CSVMarketDataProvider(self.config.resolve_path(self.config.data.csv_path))
+        if self.config.data.source == "parquet-directory":
+            return ParquetDirectoryProvider(
+                self.config.resolve_path(self.config.data.parquet_dir_path),
+                timeframe=self.config.data.timeframe,
+                history_days=self.config.data.history_days,
+            )
         if self.config.data.source == "moex-data-pack":
             return MoexDataPackProvider(
                 self.config.resolve_path(self.config.data.local_data_pack_path),
@@ -803,6 +810,14 @@ class TradingOrchestrator:
                             reason=ExitReason.TAKE_PROFIT,
                         )
                         position = None
+                if position is not None and strategy.should_force_flatten_at(latest.timestamp):
+                    broker.close_position(
+                        instrument.symbol,
+                        price=latest.close,
+                        timestamp=latest.timestamp,
+                        reason=ExitReason.SESSION_FLAT,
+                    )
+                    position = None
 
             signal = strategy.generate_signal(instrument, candles)
             shadow_signal = shadow_strategy.generate_signal(instrument, candles)
@@ -838,13 +853,14 @@ class TradingOrchestrator:
                         horizon_bars=default_signal_horizon_bars(self.config.data.timeframe),
                     )
                 if not strategy.allows_entry_at(latest.timestamp):
+                    entry_block_reason = strategy.entry_block_reason_at(latest.timestamp)
                     cycle_events.append(
                         {
                             "timestamp": latest.timestamp.isoformat(),
                             "symbol": instrument.symbol,
                             "action": "signal",
                             "approved": False,
-                            "reason": "entry blocked by schedule",
+                            "reason": entry_block_reason or "entry blocked by schedule",
                             "direction": signal.direction.value,
                             "strength": signal.strength,
                             "quantity_lots": 0,
