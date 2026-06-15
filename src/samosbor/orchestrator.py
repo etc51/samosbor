@@ -8,6 +8,10 @@ from .autonomy.entry_schedule import (
     build_entry_schedule_tuning_payload,
     write_entry_schedule_tuning,
 )
+from .autonomy.entry_quality_tuning import (
+    build_entry_quality_tuning_payload,
+    write_entry_quality_tuning,
+)
 from .autonomy.exit_tuning import (
     build_exit_reason_breakdown,
     build_exit_tuning_payload,
@@ -475,6 +479,33 @@ class TradingOrchestrator:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "entry-schedule" / stamp
         write_entry_schedule_tuning(output_dir, payload)
+        payload["output_dir"] = str(output_dir)
+        return payload
+
+    def tune_entry_quality(
+        self,
+        *,
+        lookback_trades: int = 40,
+        min_trades: int = 8,
+        min_trade_retention_ratio: float = 0.5,
+        min_expectancy_improvement_rub: float = 50.0,
+        bucket_step: float = 0.05,
+    ) -> dict[str, object]:
+        broker = self._load_paper_broker()
+        payload = build_entry_quality_tuning_payload(
+            trades=broker.trades,
+            current_min_signal_strength=self.config.strategy.min_signal_strength,
+            backtest=self.config.backtest,
+            research=self.config.research,
+            lookback_trades=lookback_trades,
+            min_trades=min_trades,
+            min_trade_retention_ratio=min_trade_retention_ratio,
+            min_expectancy_improvement_rub=min_expectancy_improvement_rub,
+            bucket_step=bucket_step,
+        )
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "entry-quality" / stamp
+        write_entry_quality_tuning(output_dir, payload)
         payload["output_dir"] = str(output_dir)
         return payload
 

@@ -101,6 +101,12 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-exits
 ```
 
+Постройте рекомендацию по качеству входов уже из реальных paper-сделок:
+
+```powershell
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-quality --lookback-trades 40 --min-trades 8
+```
+
 ## Server Runtime
 
 Для 24/7 серверного paper-режима подготовлены:
@@ -120,8 +126,8 @@ SSL_TBANK_VERIFY=True
 - `samosbor-updater.timer` проверяет GitHub каждые `15` минут
 - при новом коммите делает `git pull --ff-only`, обновляет окружение и прогоняет unit tests
 - для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
-- `samosbor-daily-review.timer` после торговой сессии строит daily report, candidate patch по `allowed_entry_hours`, candidate patch по параметрам стратегии и отдельный candidate patch по exit settings
-- daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/strategy` и `runs/autotune/exits`
+- `samosbor-daily-review.timer` после торговой сессии строит daily report, candidate patch по `allowed_entry_hours`, candidate patch по параметрам стратегии, отдельный candidate patch по exit settings и candidate patch по `min_signal_strength`
+- daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/entry-quality`, `runs/autotune/strategy` и `runs/autotune/exits`
 
 Активная целевая функция autotune:
 
@@ -129,6 +135,7 @@ SSL_TBANK_VERIFY=True
 - в активных server/default research-конфигах используется midpoint `7500 RUB/мес`
 - при стартовом капитале `1 000 000 RUB` это соответствует `0.75%` среднего месячного дохода
 - для exit autotune серверный research-grid теперь перебирает несколько соседних значений `atr_stop_multiple` и `reward_to_risk`, но применяет только candidate patch под guardrails
+- для entry-quality autotune сделки теперь сохраняют `signal_strength`, а отдельный paper-feedback контур предлагает `min_signal_strength` только когда накоплено достаточно закрытых paper-сделок
 
 ## Research На Данных С D:
 

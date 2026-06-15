@@ -230,6 +230,8 @@ class TrendFollowingStrategy:
         if direction == SignalDirection.LONG:
             stop_distance = atr_value * self.config.atr_stop_multiple
             confidence = min(1.0, trend_strength * 80 + max(context_score, 0.0))
+            if confidence < self.config.min_signal_strength:
+                return None
             reason = extra_reason
             return Signal(
                 instrument=instrument,
@@ -247,6 +249,8 @@ class TrendFollowingStrategy:
                 },
             )
         confidence = min(1.0, trend_strength * 80 + max(-context_score, 0.0))
+        if confidence < self.config.min_signal_strength:
+            return None
         return Signal(
             instrument=instrument,
             direction=direction,

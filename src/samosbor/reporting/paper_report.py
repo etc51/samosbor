@@ -280,6 +280,7 @@ def _trade_rows(trades: list[TradeRecord]) -> list[dict[str, object]]:
                 "gross_pnl": round(trade.gross_pnl, 2),
                 "net_pnl": round(trade.net_pnl, 2),
                 "reason": trade.reason,
+                "signal_strength": round(trade.signal_strength, 4),
             }
         )
     return rows
@@ -300,6 +301,7 @@ def _write_trade_csv(path: Path, rows: list[dict[str, object]]) -> None:
                 "gross_pnl",
                 "net_pnl",
                 "reason",
+                "signal_strength",
             ],
         )
         writer.writeheader()

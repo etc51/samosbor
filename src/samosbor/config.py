@@ -59,6 +59,7 @@ class StrategySection:
     require_breakout: bool = True
     atr_stop_multiple: float = 2.0
     reward_to_risk: float = 2.0
+    min_signal_strength: float = 0.0
     min_trend_strength: float = 0.004
     min_liquidity_rub: float = 50_000_000
     allow_shorts: bool = True

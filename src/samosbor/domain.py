@@ -95,6 +95,7 @@ class Position:
     take_profit: float
     opened_at: datetime
     updated_at: datetime
+    signal_strength: float = 0.0
 
     @property
     def quantity_units(self) -> int:
@@ -146,6 +147,7 @@ class Position:
             "take_profit": self.take_profit,
             "opened_at": self.opened_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
+            "signal_strength": self.signal_strength,
         }
 
     @classmethod
@@ -176,6 +178,7 @@ class Position:
             take_profit=float(payload["take_profit"]),
             opened_at=datetime.fromisoformat(payload["opened_at"]),
             updated_at=datetime.fromisoformat(payload["updated_at"]),
+            signal_strength=float(payload.get("signal_strength", 0.0)),
         )
 
 
@@ -240,6 +243,7 @@ class TradeRecord:
     gross_pnl: float
     net_pnl: float
     reason: str
+    signal_strength: float = 0.0
 
 
 @dataclass(frozen=True)

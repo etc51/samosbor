@@ -49,6 +49,7 @@ def _write_trades(path: Path, result: BacktestResult) -> None:
                 "gross_pnl",
                 "net_pnl",
                 "reason",
+                "signal_strength",
             ]
         )
         for trade in result.trades:
@@ -64,6 +65,7 @@ def _write_trades(path: Path, result: BacktestResult) -> None:
                     trade.gross_pnl,
                     trade.net_pnl,
                     trade.reason,
+                    trade.signal_strength,
                 ]
             )
 

@@ -67,6 +67,7 @@ class LocalPaperBroker:
                 gross_pnl=float(item["gross_pnl"]),
                 net_pnl=float(item["net_pnl"]),
                 reason=item["reason"],
+                signal_strength=float(item.get("signal_strength", 0.0)),
             )
             for item in payload.get("trades", [])
         ]
@@ -94,6 +95,7 @@ class LocalPaperBroker:
                     "gross_pnl": trade.gross_pnl,
                     "net_pnl": trade.net_pnl,
                     "reason": trade.reason,
+                    "signal_strength": trade.signal_strength,
                 }
                 for trade in self.trades
             ],
@@ -142,6 +144,7 @@ class LocalPaperBroker:
             take_profit=signal.take_profit,
             opened_at=timestamp,
             updated_at=timestamp,
+            signal_strength=signal.strength,
         )
         self.portfolio.positions[signal.instrument.symbol] = position
         self.events.append(
@@ -155,6 +158,7 @@ class LocalPaperBroker:
                 "commission": commission,
                 "margin_requirement": margin_requirement,
                 "reason": signal.reason,
+                "signal_strength": signal.strength,
             }
         )
         return position
@@ -205,6 +209,7 @@ class LocalPaperBroker:
             gross_pnl=gross_pnl,
             net_pnl=net_pnl,
             reason=reason.value,
+            signal_strength=position.signal_strength,
         )
         self.trades.append(trade)
         self.events.append(
@@ -218,6 +223,7 @@ class LocalPaperBroker:
                 "commission": commission,
                 "reason": reason.value,
                 "net_pnl": net_pnl,
+                "signal_strength": position.signal_strength,
             }
         )
         del self.portfolio.positions[symbol]

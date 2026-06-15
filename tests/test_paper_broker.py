@@ -33,6 +33,8 @@ class PaperBrokerTest(unittest.TestCase):
         self.assertIsNotNone(trade)
         self.assertEqual(len(broker.trades), 1)
         self.assertGreater(broker.portfolio.cash, 100_000)
+        self.assertEqual(opened.signal_strength, 0.8)
+        self.assertEqual(trade.signal_strength, 0.8)
 
 
 if __name__ == "__main__":

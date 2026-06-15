@@ -38,6 +38,7 @@ breakout_window = 20
 require_breakout = true
 atr_stop_multiple = 2.0
 reward_to_risk = 1.5
+min_signal_strength = 0.0
 min_trend_strength = 0.004
 min_liquidity_rub = 1000000
 allow_shorts = true

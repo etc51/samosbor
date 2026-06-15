@@ -184,6 +184,7 @@ CLI-сценарии:
 - `paper-cycle`
 - `paper-report`
 - `tune-entry-hours`
+- `tune-entry-quality`
 - `tune-strategy`
 - `tune-exits`
 - `walk-forward`
@@ -206,6 +207,8 @@ CLI-сценарии:
 - для futures runtime дополнительно подтягивает `GetFuturesMargin` и использует его в sizing/risk checks
 - systemd timer вызывает `paper-cycle` каждый час в торговую сессию
 - отдельный daily-review timer собирает сводку по закрытым сделкам и строит candidate patch по `allowed_entry_hours`
+- тот же runtime теперь сохраняет `signal_strength` в paper state и closed trades, чтобы feedback loop мог работать по фактическим входам
+- daily-review также запускает `tune-entry-quality`, который анализирует последние закрытые paper-сделки и предлагает candidate patch по `min_signal_strength`
 - тот же daily-review timer запускает walk-forward-based `tune-strategy`, который предлагает только candidate patch и не меняет боевой TOML сам
 - daily-review также запускает `tune-exits`, который крутит только `atr_stop_multiple` и `reward_to_risk` на том же OOS-окне и тоже пишет лишь candidate patch
 - entry schedule дополнительно фильтруется на уровне стратегии через `allowed_entry_hours` по `Europe/Moscow`

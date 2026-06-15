@@ -58,6 +58,40 @@ def build_parser() -> argparse.ArgumentParser:
         default=2,
         help="Maximum number of negative hours to remove in one recommendation pass",
     )
+    tune_entry_quality_parser = subparsers.add_parser(
+        "tune-entry-quality",
+        help="Recommend a safer min_signal_strength from recent paper-trading results",
+    )
+    tune_entry_quality_parser.add_argument(
+        "--lookback-trades",
+        type=int,
+        default=40,
+        help="Number of latest closed paper trades to analyze",
+    )
+    tune_entry_quality_parser.add_argument(
+        "--min-trades",
+        type=int,
+        default=8,
+        help="Minimum number of signal-tagged trades required before suggesting a patch",
+    )
+    tune_entry_quality_parser.add_argument(
+        "--min-trade-retention-ratio",
+        type=float,
+        default=0.5,
+        help="Minimum retained trade ratio after raising the threshold",
+    )
+    tune_entry_quality_parser.add_argument(
+        "--min-expectancy-improvement-rub",
+        type=float,
+        default=50.0,
+        help="Minimum expectancy improvement required before suggesting a patch",
+    )
+    tune_entry_quality_parser.add_argument(
+        "--bucket-step",
+        type=float,
+        default=0.05,
+        help="Step used to test candidate signal-strength thresholds",
+    )
     tune_strategy_parser = subparsers.add_parser(
         "tune-strategy",
         help="Recommend safer strategy parameters from recent walk-forward results",
@@ -158,6 +192,21 @@ def main(argv: list[str] | None = None) -> int:
                     min_trades_per_hour=args.min_trades_per_hour,
                     max_hours_to_add=args.max_hours_to_add,
                     max_hours_to_remove=args.max_hours_to_remove,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "tune-entry-quality":
+        print(
+            json.dumps(
+                orchestrator.tune_entry_quality(
+                    lookback_trades=args.lookback_trades,
+                    min_trades=args.min_trades,
+                    min_trade_retention_ratio=args.min_trade_retention_ratio,
+                    min_expectancy_improvement_rub=args.min_expectancy_improvement_rub,
+                    bucket_step=args.bucket_step,
                 ),
                 ensure_ascii=False,
                 indent=2,

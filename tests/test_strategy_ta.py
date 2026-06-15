@@ -130,6 +130,37 @@ class TrendFollowingTATest(unittest.TestCase):
         self.assertEqual(signal.direction, SignalDirection.SHORT)
         self.assertLess(signal.take_profit, signal.entry_price)
 
+    def test_min_signal_strength_can_block_entry(self):
+        candles = make_candles(trend=0.2, final_close=114.5)
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                style="ema_adx_macd",
+                require_breakout=False,
+                min_liquidity_rub=1.0,
+                min_trend_strength=0.002,
+                min_signal_strength=1.01,
+            ),
+            timeframe="hour",
+        )
+        with patch.object(
+            TrendFollowingStrategy,
+            "_ta_features",
+            return_value={
+                "ema_fast": 113.0,
+                "ema_slow": 110.0,
+                "rsi": 61.0,
+                "macd": 1.2,
+                "macd_hist": 0.4,
+                "macd_signal": 0.8,
+                "adx": 24.0,
+                "dmp": 27.0,
+                "dmn": 15.0,
+            },
+        ):
+            signal = strategy.generate_signal(self.instrument, candles)
+
+        self.assertIsNone(signal)
+
     def test_unknown_strategy_style_raises(self):
         with self.assertRaises(ValueError):
             TrendFollowingStrategy(
