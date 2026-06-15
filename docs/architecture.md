@@ -182,6 +182,8 @@ CLI-сценарии:
 - `accounts`
 - `backtest`
 - `paper-cycle`
+- `paper-report`
+- `tune-entry-hours`
 - `walk-forward`
 - `sandbox-init`
 - `optimize`
@@ -201,6 +203,7 @@ CLI-сценарии:
 - market data приходят через T-Bank API
 - для futures runtime дополнительно подтягивает `GetFuturesMargin` и использует его в sizing/risk checks
 - systemd timer вызывает `paper-cycle` каждый час в торговую сессию
+- отдельный daily-review timer собирает сводку по закрытым сделкам и строит candidate patch по `allowed_entry_hours`
 - entry schedule дополнительно фильтруется на уровне стратегии через `allowed_entry_hours` по `Europe/Moscow`
 
 ## Дальнейшее развитие

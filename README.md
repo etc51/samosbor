@@ -77,6 +77,18 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/paper.toml paper-cycle
 ```
 
+Соберите краткую сводку по фактическим paper-сделкам:
+
+```powershell
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml paper-report --days 1
+```
+
+Постройте безопасную рекомендацию по часам входа из последних результатов:
+
+```powershell
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-hours --days 45 --min-trades-per-hour 3
+```
+
 ## Server Runtime
 
 Для 24/7 серверного paper-режима подготовлены:
@@ -96,6 +108,8 @@ SSL_TBANK_VERIFY=True
 - `samosbor-updater.timer` проверяет GitHub каждые `15` минут
 - при новом коммите делает `git pull --ff-only`, обновляет окружение и прогоняет unit tests
 - для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
+- `samosbor-daily-review.timer` после торговой сессии строит daily report и отдельный candidate patch по `allowed_entry_hours`
+- daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports` и `runs/autotune/entry-schedule`
 
 ## Research На Данных С D:
 

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
+from .autonomy.entry_schedule import (
+    build_entry_schedule_tuning_payload,
+    write_entry_schedule_tuning,
+)
 from .config import AppConfig
 from .config import StrategySection
 from .data.csv_provider import CSVMarketDataProvider
@@ -13,6 +17,7 @@ from .domain import ExitReason
 from .execution.paper import LocalPaperBroker
 from .execution.sandbox import TBankSandboxExecutor
 from .reporting.metrics import compute_summary
+from .reporting.paper_report import build_paper_report_payload, write_paper_report
 from .reporting.research_writer import (
     write_monte_carlo_report,
     write_optimizer_report,
@@ -55,6 +60,15 @@ class TradingOrchestrator:
 
     def _risk_manager(self) -> RiskManager:
         return RiskManager(self.config.risk)
+
+    def _load_paper_broker(self) -> LocalPaperBroker:
+        state_path = self.config.resolve_path(self.config.execution.state_path)
+        return LocalPaperBroker.load(
+            state_path,
+            initial_cash=self.config.backtest.initial_cash,
+            slippage_bps=self.config.execution.slippage_bps,
+            commission_bps=self.config.execution.commission_bps,
+        )
 
     def _load_market_bundle(self):
         provider = self._data_provider()
@@ -184,6 +198,57 @@ class TradingOrchestrator:
         payload["output_dir"] = str(output_dir)
         return payload
 
+    def run_paper_report(
+        self,
+        *,
+        days: int = 1,
+        report_date: str | None = None,
+        timezone_name: str | None = None,
+    ) -> dict[str, object]:
+        broker = self._load_paper_broker()
+        parsed_date = date.fromisoformat(report_date) if report_date else None
+        payload = build_paper_report_payload(
+            broker.portfolio,
+            broker.trades,
+            timezone_name=timezone_name or self.config.app.timezone,
+            report_date=parsed_date,
+            days=days,
+        )
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "paper-reports" / stamp
+        write_paper_report(output_dir, payload)
+        payload["output_dir"] = str(output_dir)
+        return payload
+
+    def tune_entry_schedule(
+        self,
+        *,
+        lookback_days: int = 45,
+        report_date: str | None = None,
+        timezone_name: str | None = None,
+        min_trades_per_hour: int = 3,
+        max_hours_to_add: int = 2,
+        max_hours_to_remove: int = 2,
+    ) -> dict[str, object]:
+        broker = self._load_paper_broker()
+        parsed_date = date.fromisoformat(report_date) if report_date else None
+        payload = build_entry_schedule_tuning_payload(
+            broker.portfolio,
+            broker.trades,
+            timezone_name=timezone_name or self.config.app.timezone,
+            current_hours=self.config.strategy.allowed_entry_hours,
+            report_date=parsed_date,
+            lookback_days=lookback_days,
+            min_trades_per_hour=min_trades_per_hour,
+            max_hours_to_add=max_hours_to_add,
+            max_hours_to_remove=max_hours_to_remove,
+        )
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "entry-schedule" / stamp
+        write_entry_schedule_tuning(output_dir, payload)
+        payload["output_dir"] = str(output_dir)
+        return payload
+
     def run_paper_cycle(self) -> dict[str, object]:
         assert_paper_only_mode(
             self.config.execution.mode,
@@ -196,12 +261,7 @@ class TradingOrchestrator:
         marks = {symbol: candles[-1].close for symbol, candles in history.items() if candles}
 
         state_path = self.config.resolve_path(self.config.execution.state_path)
-        broker = LocalPaperBroker.load(
-            state_path,
-            initial_cash=self.config.backtest.initial_cash,
-            slippage_bps=self.config.execution.slippage_bps,
-            commission_bps=self.config.execution.commission_bps,
-        )
+        broker = self._load_paper_broker()
 
         timestamp = datetime.now(timezone.utc)
         strategy = self._strategy()

@@ -26,9 +26,38 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("accounts", help="List T-Bank accounts visible to the configured token")
     subparsers.add_parser("backtest", help="Run a historical backtest")
     subparsers.add_parser("paper-cycle", help="Run one paper-trading cycle")
+    paper_report_parser = subparsers.add_parser("paper-report", help="Build a summary from paper-trading state")
+    paper_report_parser.add_argument("--days", type=int, default=1, help="Lookback window in days")
+    paper_report_parser.add_argument("--date", help="Anchor ISO date in report timezone, defaults to today")
+    paper_report_parser.add_argument("--timezone", help="IANA timezone override, defaults to config app.timezone")
     subparsers.add_parser("optimize", help="Search parameter sets and instrument subsets")
     subparsers.add_parser("monte-carlo", help="Run Monte Carlo robustness analysis on a fresh backtest")
     subparsers.add_parser("walk-forward", help="Run rolling walk-forward validation with re-optimization")
+    tune_schedule_parser = subparsers.add_parser(
+        "tune-entry-hours",
+        help="Recommend safer entry hours from recent paper-trading results",
+    )
+    tune_schedule_parser.add_argument("--days", type=int, default=45, help="Lookback window in days")
+    tune_schedule_parser.add_argument("--date", help="Anchor ISO date in report timezone, defaults to today")
+    tune_schedule_parser.add_argument("--timezone", help="IANA timezone override, defaults to config app.timezone")
+    tune_schedule_parser.add_argument(
+        "--min-trades-per-hour",
+        type=int,
+        default=3,
+        help="Minimum closed trades per hour before considering a schedule change",
+    )
+    tune_schedule_parser.add_argument(
+        "--max-hours-to-add",
+        type=int,
+        default=2,
+        help="Maximum number of positive hours to add in one recommendation pass",
+    )
+    tune_schedule_parser.add_argument(
+        "--max-hours-to-remove",
+        type=int,
+        default=2,
+        help="Maximum number of negative hours to remove in one recommendation pass",
+    )
 
     sandbox_parser = subparsers.add_parser("sandbox-init", help="Create/fund a sandbox account")
     sandbox_parser.add_argument("--fund-rub", type=float, default=1_000_000)
@@ -53,6 +82,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "paper-cycle":
         print(json.dumps(orchestrator.run_paper_cycle(), ensure_ascii=False, indent=2))
         return 0
+    if args.command == "paper-report":
+        print(
+            json.dumps(
+                orchestrator.run_paper_report(
+                    days=args.days,
+                    report_date=args.date,
+                    timezone_name=args.timezone,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
     if args.command == "optimize":
         print(json.dumps(orchestrator.optimize_strategy(), ensure_ascii=False, indent=2))
         return 0
@@ -61,6 +103,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "walk-forward":
         print(json.dumps(orchestrator.run_walk_forward(), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "tune-entry-hours":
+        print(
+            json.dumps(
+                orchestrator.tune_entry_schedule(
+                    lookback_days=args.days,
+                    report_date=args.date,
+                    timezone_name=args.timezone,
+                    min_trades_per_hour=args.min_trades_per_hour,
+                    max_hours_to_add=args.max_hours_to_add,
+                    max_hours_to_remove=args.max_hours_to_remove,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
     if args.command == "sandbox-init":
         print(
