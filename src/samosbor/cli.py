@@ -34,6 +34,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         help="Optional path for the generated effective config, defaults next to the input config",
     )
+    nightly_parser = subparsers.add_parser(
+        "nightly-autonomy",
+        help="Run the full nightly analyze/research/optimizer/restrictions autonomy cycle",
+    )
+    nightly_parser.add_argument(
+        "--base-config",
+        required=True,
+        help="Base runtime config used to rebuild the effective config at the end of the nightly cycle",
+    )
+    nightly_parser.add_argument(
+        "--effective-output",
+        required=True,
+        help="Path to the effective runtime config that nightly autonomy should refresh",
+    )
     paper_report_parser = subparsers.add_parser("paper-report", help="Build a summary from paper-trading state")
     paper_report_parser.add_argument("--days", type=int, default=1, help="Lookback window in days")
     paper_report_parser.add_argument("--date", help="Anchor ISO date in report timezone, defaults to today")
@@ -189,6 +203,19 @@ def main(argv: list[str] | None = None) -> int:
                 orchestrator.refresh_effective_config(
                     source_config_path=args.config,
                     output_path=args.output,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "nightly-autonomy":
+        print(
+            json.dumps(
+                orchestrator.run_nightly_autonomy(
+                    active_config_path=args.config,
+                    base_config_path=args.base_config,
+                    effective_output_path=args.effective_output,
                 ),
                 ensure_ascii=False,
                 indent=2,

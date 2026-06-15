@@ -230,23 +230,51 @@ class TradingOrchestrator:
         payload["output_dir"] = str(output_dir)
         return payload
 
-    def run_walk_forward(self) -> dict[str, object]:
+    def run_walk_forward(self, *, adaptive_history: bool = False) -> dict[str, object]:
         assert_paper_only_mode(
             self.config.execution.mode,
             allow_live_trading=self.config.execution.allow_live_trading,
             live_flag=False,
         )
-        _, _, candles_by_symbol, instruments_by_symbol = self._load_market_bundle()
+        _, instruments, candles_by_symbol, instruments_by_symbol = self._load_market_bundle()
+        research = self.config.research
+        research_window: dict[str, object] | None = None
+        if adaptive_history:
+            grouped = _group_candles_by_month(candles_by_symbol)
+            available_months = _available_months(grouped)
+            tuned_research, research_window = adapt_strategy_tuning_research(
+                self.config.research,
+                available_months=len(available_months),
+                fixed_subset_size=len(instruments),
+            )
+            if tuned_research is None:
+                payload = {
+                    "config": {},
+                    "summary": {},
+                    "available_months": available_months,
+                    "skipped_folds": 0,
+                    "folds": [],
+                    "research_window": research_window,
+                    "reason": research_window["reason"],
+                }
+                stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+                output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "walk-forward" / stamp
+                write_walk_forward_report(output_dir, payload)
+                payload["output_dir"] = str(output_dir)
+                return payload
+            research = tuned_research
         validator = WalkForwardValidator(
             base_strategy=self.config.strategy,
             risk=self.config.risk,
             backtest=self.config.backtest,
-            research=self.config.research,
+            research=research,
             timeframe=self.config.data.timeframe,
             slippage_bps=self.config.execution.slippage_bps,
             commission_bps=self.config.execution.commission_bps,
         )
         payload = validator.run(candles_by_symbol, instruments_by_symbol)
+        if research_window is not None:
+            payload["research_window"] = research_window
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "walk-forward" / stamp
         write_walk_forward_report(output_dir, payload)
@@ -645,6 +673,87 @@ class TradingOrchestrator:
         result["output_dir"] = str(output_dir)
         return result
 
+    def run_nightly_autonomy(
+        self,
+        *,
+        active_config_path: str | Path,
+        base_config_path: str | Path,
+        effective_output_path: str | Path,
+    ) -> dict[str, object]:
+        assert_paper_only_mode(
+            self.config.execution.mode,
+            allow_live_trading=self.config.execution.allow_live_trading,
+            live_flag=False,
+        )
+        active_config = Path(active_config_path).resolve()
+        base_config = Path(base_config_path).resolve()
+        effective_config = Path(effective_output_path).resolve()
+
+        paper_report = self.run_paper_report(days=1)
+        entry_schedule = self.tune_entry_schedule(
+            lookback_days=45,
+            min_trades_per_hour=3,
+        )
+        feedback_bootstrap = self.bootstrap_entry_feedback()
+        entry_quality = self.tune_entry_quality(
+            lookback_trades=40,
+            min_trades=8,
+        )
+        optimizer = self.optimize_strategy()
+        walk_forward = self.run_walk_forward(adaptive_history=True)
+        monte_carlo = self.run_monte_carlo()
+        strategy_tuning = self.tune_strategy()
+        exit_tuning = self.tune_exits()
+        effective_config_result = self.refresh_effective_config(
+            source_config_path=base_config,
+            output_path=effective_config,
+        )
+
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "nightly-autonomy" / stamp
+        result = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "active_config_path": str(active_config),
+            "base_config_path": str(base_config),
+            "effective_output_path": str(effective_config),
+            "steps_executed": [
+                "paper-report",
+                "tune-entry-hours",
+                "bootstrap-entry-feedback",
+                "tune-entry-quality",
+                "optimize",
+                "walk-forward",
+                "monte-carlo",
+                "tune-strategy",
+                "tune-exits",
+                "refresh-effective-config",
+            ],
+            "analysis": {
+                "paper_report": _paper_report_view(paper_report),
+            },
+            "restrictions": {
+                "entry_schedule": _entry_schedule_view(entry_schedule),
+                "entry_quality": _entry_quality_view(entry_quality),
+                "signal_feedback_bootstrap": _feedback_bootstrap_view(feedback_bootstrap),
+            },
+            "research": {
+                "optimizer": _optimizer_view(optimizer),
+                "walk_forward": _walk_forward_view(walk_forward),
+                "monte_carlo": _monte_carlo_view(monte_carlo),
+            },
+            "tuning": {
+                "strategy": _strategy_tuning_view(strategy_tuning),
+                "exits": _exit_tuning_view(exit_tuning),
+            },
+            "runtime": {
+                "effective_config": _effective_config_view(effective_config_result),
+            },
+        }
+        write_json_payload(output_dir / "nightly_autonomy.json", result)
+        (output_dir / "summary.md").write_text(_render_nightly_autonomy_markdown(result), encoding="utf-8")
+        result["output_dir"] = str(output_dir)
+        return result
+
     def run_paper_cycle(self) -> dict[str, object]:
         assert_paper_only_mode(
             self.config.execution.mode,
@@ -867,3 +976,182 @@ class TradingOrchestrator:
             3,
         )
         return test_result, summary
+
+
+def _paper_report_view(payload: dict[str, object]) -> dict[str, object]:
+    summary = payload.get("summary", {})
+    comparison = payload.get("comparison_to_previous_window", {})
+    delta = comparison.get("delta", {})
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "period": payload.get("period", {}),
+        "portfolio": payload.get("portfolio", {}),
+        "summary": {
+            "trades": summary.get("trades", 0),
+            "net_pnl_rub": summary.get("net_pnl_rub", 0.0),
+            "win_rate_pct": summary.get("win_rate_pct", 0.0),
+            "profit_factor": summary.get("profit_factor", 0.0),
+            "expectancy_rub": summary.get("expectancy_rub", 0.0),
+        },
+        "comparison_delta": {
+            "trades": delta.get("trades", 0.0),
+            "net_pnl_rub": delta.get("net_pnl_rub", 0.0),
+        },
+    }
+
+
+def _entry_schedule_view(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "changed": payload.get("changed", False),
+        "reason": payload.get("reason", ""),
+        "current_hours": payload.get("current_hours", []),
+        "proposed_hours": payload.get("proposed_hours", []),
+        "additions": payload.get("additions", []),
+        "removals": payload.get("removals", []),
+    }
+
+
+def _entry_quality_view(payload: dict[str, object]) -> dict[str, object]:
+    lookback = payload.get("lookback", {})
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "evidence_source": payload.get("evidence_source", ""),
+        "changed": payload.get("changed", False),
+        "reason": payload.get("reason", ""),
+        "current_min_signal_strength": payload.get("current_min_signal_strength", 0.0),
+        "recommended_min_signal_strength": payload.get("recommended_min_signal_strength", 0.0),
+        "eligible_trades": lookback.get("eligible_trades", 0),
+    }
+
+
+def _feedback_bootstrap_view(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "generated_total": payload.get("generated_total", 0),
+        "generated_by_symbol": payload.get("generated_by_symbol", {}),
+        "resolved_signals": payload.get("resolved_signals", 0),
+        "pending_signals": payload.get("pending_signals", 0),
+    }
+
+
+def _optimizer_view(payload: dict[str, object]) -> dict[str, object]:
+    best = payload.get("best_candidate") or {}
+    summary = best.get("summary", {}) if isinstance(best, dict) else {}
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "evaluated_candidates": payload.get("evaluated_candidates", 0),
+        "best_candidate": {
+            "symbols": best.get("symbols", []),
+            "style": best.get("style", ""),
+            "score": best.get("score", 0.0),
+            "total_return_pct": summary.get("total_return_pct", 0.0),
+            "avg_monthly_return_pct": summary.get("avg_monthly_return_pct", 0.0),
+            "max_drawdown_pct": summary.get("max_drawdown_pct", 0.0),
+            "profit_factor": summary.get("profit_factor", 0.0),
+            "trades": summary.get("trades", 0),
+        },
+    }
+
+
+def _walk_forward_view(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "config": payload.get("config", {}),
+        "summary": payload.get("summary", {}),
+        "available_months": payload.get("available_months", []),
+        "skipped_folds": payload.get("skipped_folds", 0),
+    }
+
+
+def _monte_carlo_view(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "target": payload.get("target", {}),
+        "backtest_summary": payload.get("backtest_summary", {}),
+        "monte_carlo_summary": payload.get("monte_carlo", {}).get("summary", {}),
+    }
+
+
+def _strategy_tuning_view(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "changed": payload.get("changed", False),
+        "reason": payload.get("reason", ""),
+        "patch_values": payload.get("patch_values", {}),
+        "comparison": payload.get("comparison", {}),
+    }
+
+
+def _exit_tuning_view(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "changed": payload.get("changed", False),
+        "reason": payload.get("reason", ""),
+        "patch_values": payload.get("patch_values", {}),
+        "comparison": payload.get("comparison", {}),
+    }
+
+
+def _effective_config_view(payload: dict[str, object]) -> dict[str, object]:
+    sources = []
+    for source in payload.get("sources", []):
+        activation = source.get("activation", {})
+        sources.append(
+            {
+                "source": source.get("source", ""),
+                "changed": source.get("changed", False),
+                "selected_values": source.get("selected_values", {}),
+                "activation": activation,
+            }
+        )
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "source_config_path": payload.get("source_config_path", ""),
+        "effective_config_path": payload.get("effective_config_path", ""),
+        "paper_only_mode": payload.get("paper_only_mode", ""),
+        "allow_live_trading": payload.get("allow_live_trading", False),
+        "applied_strategy_overrides": payload.get("applied_strategy_overrides", {}),
+        "rollback_guardrail": payload.get("rollback_guardrail", {}),
+        "sources": sources,
+    }
+
+
+def _render_nightly_autonomy_markdown(payload: dict[str, object]) -> str:
+    analysis = payload["analysis"]["paper_report"]
+    restrictions = payload["restrictions"]
+    research = payload["research"]
+    tuning = payload["tuning"]
+    runtime = payload["runtime"]["effective_config"]
+    lines = [
+        "# Nightly Autonomy",
+        "",
+        f"- Active config: {payload['active_config_path']}",
+        f"- Base config: {payload['base_config_path']}",
+        f"- Effective output: {payload['effective_output_path']}",
+        "",
+        "## Analyze",
+        f"- Trades: {analysis['summary']['trades']}",
+        f"- Net PnL: {analysis['summary']['net_pnl_rub']} RUB",
+        f"- Profit factor: {analysis['summary']['profit_factor']}",
+        "",
+        "## Restrictions",
+        f"- Entry hours changed: {restrictions['entry_schedule']['changed']} ({restrictions['entry_schedule']['reason']})",
+        f"- Entry quality changed: {restrictions['entry_quality']['changed']} ({restrictions['entry_quality']['reason']})",
+        f"- Signal feedback resolved: {restrictions['signal_feedback_bootstrap']['resolved_signals']}",
+        "",
+        "## Research",
+        f"- Optimizer candidates: {research['optimizer']['evaluated_candidates']}",
+        f"- Walk-forward folds: {research['walk_forward']['summary'].get('folds_evaluated', 0)}",
+        f"- Monte Carlo positive probability: {research['monte_carlo']['monte_carlo_summary'].get('probability_positive_pct', 0.0)}%",
+        "",
+        "## Tuning",
+        f"- Strategy candidate accepted: {tuning['strategy']['changed']}",
+        f"- Exit candidate accepted: {tuning['exits']['changed']}",
+        "",
+        "## Runtime",
+        f"- Rollback guardrail: {runtime['rollback_guardrail'].get('rollback_to_base', False)} ({runtime['rollback_guardrail'].get('reason', '')})",
+        f"- Active override keys: {sorted(runtime['applied_strategy_overrides'])}",
+        "",
+    ]
+    return "\n".join(lines)

@@ -119,6 +119,12 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml refresh-effective-config
 ```
 
+Чтобы принудительно прогнать весь ночной автономный цикл обучения:
+
+```powershell
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.effective.toml nightly-autonomy --base-config configs/server_tbank_cnyrubf_premium.toml --effective-output configs/server_tbank_cnyrubf_premium.effective.toml
+```
+
 ## Server Runtime
 
 Для 24/7 серверного paper-режима подготовлены:
@@ -138,8 +144,9 @@ SSL_TBANK_VERIFY=True
 - `samosbor-updater.timer` проверяет GitHub каждые `15` минут
 - при новом коммите делает `git pull --ff-only`, обновляет окружение и прогоняет unit tests
 - для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
-- `samosbor-daily-review.timer` после торговой сессии строит daily report, candidate patch по `allowed_entry_hours`, candidate patch по параметрам стратегии, отдельный candidate patch по exit settings и candidate patch по `min_signal_strength`
+- `samosbor-daily-review.timer` после торговой сессии запускает единый `nightly-autonomy` цикл: daily analyze, entry restrictions, signal-feedback bootstrap, optimizer, walk-forward research, Monte Carlo, strategy/exit tuning и финальную пересборку effective config
 - daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/entry-quality`, `runs/autotune/strategy` и `runs/autotune/exits`
+- тот же nightly cycle теперь дополнительно пишет агрегированный summary в `runs/autotune/nightly-autonomy`
 - `paper-cycle` теперь работает через производный `configs/server_tbank_cnyrubf_premium.effective.toml`, который каждый раз пересобирается именно из базового server TOML плюс последних autotune-артефактов и сохраняет `local-paper` / `allow_live_trading = false`
 
 Активная целевая функция autotune:
