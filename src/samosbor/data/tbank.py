@@ -4,7 +4,7 @@ import logging
 import os
 import warnings
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Iterator
 
 from ..config import AppConfig
@@ -174,10 +174,28 @@ class TBankMarketDataProvider:
         timeframe: str,
         history_days: int,
     ) -> list[Candle]:
-        interval = timeframe_to_tbank_interval(timeframe)
-        _, _, _, _, now_fn, quotation_to_decimal = _sdk_imports()
+        _, _, _, _, now_fn, _ = _sdk_imports()
         to_dt = now_fn()
         from_dt = to_dt - timedelta(days=history_days)
+        return self.get_candles_range(
+            instrument,
+            timeframe=timeframe,
+            from_dt=from_dt,
+            to_dt=to_dt,
+        )
+
+    def get_candles_range(
+        self,
+        instrument: Instrument,
+        *,
+        timeframe: str,
+        from_dt: datetime,
+        to_dt: datetime | None = None,
+    ) -> list[Candle]:
+        interval = timeframe_to_tbank_interval(timeframe)
+        _, _, _, _, now_fn, quotation_to_decimal = _sdk_imports()
+        if to_dt is None:
+            to_dt = now_fn()
 
         with self._client() as client:
             response = list(

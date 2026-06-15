@@ -21,4 +21,9 @@ python scripts/server/build-offline-autonomy-config.py \
   --output "$AUTONOMY_CONFIG" \
   --parquet-dir "$AUTONOMY_PARQUET_DIR"
 
+python scripts/server/update-offline-parquet-cache.py \
+  --config "$ACTIVE_CONFIG" \
+  --parquet-dir "$AUTONOMY_PARQUET_DIR" \
+  || echo "offline parquet cache update failed; continuing with the last cached candles" >&2
+
 python -m samosbor.cli --config "$AUTONOMY_CONFIG" nightly-autonomy --base-config "$BASE_CONFIG" --effective-output "$EFFECTIVE_CONFIG"
