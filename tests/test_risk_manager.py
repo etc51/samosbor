@@ -81,8 +81,8 @@ class RiskManagerDiversificationTest(unittest.TestCase):
         decision = manager.approve(portfolio, _stock_signal("GAZP"), {"SBER": 100.0, "GAZP": 100.0}, [])
 
         self.assertTrue(decision.approved)
-        self.assertEqual(decision.quantity_lots, 600)
-        self.assertEqual(decision.estimated_notional_rub, 60_000.0)
+        self.assertEqual(decision.quantity_lots, 675)
+        self.assertEqual(decision.estimated_notional_rub, 67_500.0)
 
     def test_short_stock_position_uses_same_slot_budget(self):
         manager = RiskManager(

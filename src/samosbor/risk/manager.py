@@ -116,13 +116,13 @@ class RiskManager:
         if quantity_lots < 1:
             return RiskDecision(False, "gross exposure cap reached")
 
-        deployable_stock_budget = max(0.0, equity * (1 - self.config.cash_reserve_ratio) - current_exposure)
+        deployable_stock_budget = max(0.0, equity * (1 - self.config.cash_reserve_ratio))
         quantity_lots = self._cap_remaining_slot_budget(
             quantity_lots,
             current_allocated_rub=0.0,
             total_budget_rub=deployable_stock_budget,
             per_lot_rub=notional_per_lot,
-            remaining_slots=remaining_slots,
+            remaining_slots=max(1, self.config.max_positions),
         )
         if quantity_lots < 1:
             return RiskDecision(False, "stock slot budget reached")
