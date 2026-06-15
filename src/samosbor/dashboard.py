@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .autonomy.signal_feedback import signal_feedback_path
 from .config import AppConfig, load_config
@@ -22,6 +22,10 @@ def build_dashboard_payload(
     reporting_dir = config.resolve_path(config.reporting.output_dir)
     state_path = config.resolve_path(config.execution.state_path)
     feedback_path = signal_feedback_path(state_path)
+    runtime_symbols = {
+        instrument.symbol.strip().upper() for instrument in config.data.instruments if instrument.symbol.strip()
+    }
+    runtime_hours = {int(hour) for hour in config.strategy.allowed_entry_hours}
 
     paper_cycle = _read_latest_json(reporting_dir / "paper", "cycle_summary.json")
     paper_report = _read_latest_json(reporting_dir / "paper-reports", "summary.json")
@@ -30,14 +34,26 @@ def build_dashboard_payload(
         reporting_dir / "autotune" / "effective-config",
         "effective_config.json",
     )
-    entry_symbols = _read_latest_json(
+    entry_symbols = _read_latest_compatible_json(
         reporting_dir / "autotune" / "entry-symbols",
         "symbol_restrictions.json",
+        lambda payload: _entry_symbols_payload_matches_runtime(payload, runtime_symbols),
     )
-    entry_schedule = _read_latest_json(
+    if not entry_symbols:
+        entry_symbols = _sanitize_entry_symbols_payload(
+            _read_latest_json(reporting_dir / "autotune" / "entry-symbols", "symbol_restrictions.json"),
+            runtime_symbols,
+        )
+    entry_schedule = _read_latest_compatible_json(
         reporting_dir / "autotune" / "entry-schedule",
         "schedule_tuning.json",
+        lambda payload: _entry_schedule_payload_matches_runtime(payload, runtime_hours),
     )
+    if not entry_schedule:
+        entry_schedule = _sanitize_entry_schedule_payload(
+            _read_latest_json(reporting_dir / "autotune" / "entry-schedule", "schedule_tuning.json"),
+            runtime_hours,
+        )
     entry_quality = _read_latest_json(
         reporting_dir / "autotune" / "entry-quality",
         "entry_quality_tuning.json",
@@ -761,19 +777,179 @@ def _read_latest_json(root: Path, filename: str) -> dict[str, object]:
     return _read_json_file(latest_dir / filename)
 
 
+def _read_latest_compatible_json(
+    root: Path,
+    filename: str,
+    matcher: Callable[[dict[str, object]], bool],
+) -> dict[str, object]:
+    for candidate in reversed(_timestamped_dirs(root)):
+        payload = _read_json_file(candidate / filename)
+        if payload and matcher(payload):
+            if filename == "symbol_restrictions.json":
+                return _sanitize_entry_symbols_payload(payload, set())
+            if filename == "schedule_tuning.json":
+                return _sanitize_entry_schedule_payload(payload, set())
+            return payload
+    return {}
+
+
 def _latest_timestamped_dir(root: Path) -> Path | None:
-    if not root.exists():
-        return None
-    candidates = [path for path in root.iterdir() if path.is_dir()]
+    candidates = _timestamped_dirs(root)
     if not candidates:
         return None
-    return sorted(candidates, key=lambda path: path.name)[-1]
+    return candidates[-1]
+
+
+def _timestamped_dirs(root: Path) -> list[Path]:
+    if not root.exists():
+        return []
+    return sorted((path for path in root.iterdir() if path.is_dir()), key=lambda path: path.name)
 
 
 def _read_json_file(path: Path) -> dict[str, object]:
     if not path.exists():
         return {}
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _entry_symbols_payload_matches_runtime(
+    payload: dict[str, object],
+    allowed_symbols: set[str],
+) -> bool:
+    if not payload or not allowed_symbols:
+        return bool(payload)
+    referenced = set(_normalize_symbol_list(payload.get("proposed_blocked_symbols", [])))
+    referenced.update(_normalize_symbol_list(payload.get("proposed_blocked_long_symbols", [])))
+    referenced.update(_normalize_symbol_list(payload.get("proposed_blocked_short_symbols", [])))
+    for row in payload.get("symbol_direction_breakdown", []):
+        if isinstance(row, dict):
+            symbol = str(row.get("symbol", "")).strip().upper()
+            if symbol:
+                referenced.add(symbol)
+    return not referenced or referenced.issubset(allowed_symbols)
+
+
+def _sanitize_entry_symbols_payload(
+    payload: dict[str, object],
+    allowed_symbols: set[str],
+) -> dict[str, object]:
+    if not payload:
+        return {
+            "changed": False,
+            "reason": "",
+            "evidence_source": "",
+            "proposed_blocked_symbols": [],
+            "proposed_blocked_long_symbols": [],
+            "proposed_blocked_short_symbols": [],
+            "symbol_direction_breakdown": [],
+        }
+    blocked_symbols = [
+        symbol
+        for symbol in _normalize_symbol_list(payload.get("proposed_blocked_symbols", []))
+        if not allowed_symbols or symbol in allowed_symbols
+    ]
+    blocked_long_symbols = [
+        symbol
+        for symbol in _normalize_symbol_list(payload.get("proposed_blocked_long_symbols", []))
+        if not allowed_symbols or symbol in allowed_symbols
+    ]
+    blocked_short_symbols = [
+        symbol
+        for symbol in _normalize_symbol_list(payload.get("proposed_blocked_short_symbols", []))
+        if not allowed_symbols or symbol in allowed_symbols
+    ]
+    direction_rows: list[dict[str, object]] = []
+    for row in payload.get("symbol_direction_breakdown", []):
+        if not isinstance(row, dict):
+            continue
+        symbol = str(row.get("symbol", "")).strip().upper()
+        if not symbol:
+            continue
+        if allowed_symbols and symbol not in allowed_symbols:
+            continue
+        direction_rows.append({**row, "symbol": symbol})
+    has_restrictions = bool(
+        blocked_symbols or blocked_long_symbols or blocked_short_symbols or direction_rows
+    )
+    reason = str(payload.get("reason", ""))
+    evidence_source = str(payload.get("evidence_source", ""))
+    if not has_restrictions and allowed_symbols and not _entry_symbols_payload_matches_runtime(payload, allowed_symbols):
+        reason = "latest restrictions artifact is not compatible with current runtime universe"
+        evidence_source = ""
+    return {
+        "changed": bool(payload.get("changed", False)) and has_restrictions,
+        "reason": reason,
+        "evidence_source": evidence_source,
+        "proposed_blocked_symbols": blocked_symbols,
+        "proposed_blocked_long_symbols": blocked_long_symbols,
+        "proposed_blocked_short_symbols": blocked_short_symbols,
+        "symbol_direction_breakdown": direction_rows,
+    }
+
+
+def _entry_schedule_payload_matches_runtime(
+    payload: dict[str, object],
+    allowed_hours: set[int],
+) -> bool:
+    if not payload or not allowed_hours:
+        return bool(payload)
+    proposed_hours = _normalize_hour_list(payload.get("proposed_hours", []))
+    return not proposed_hours or set(proposed_hours).issubset(allowed_hours)
+
+
+def _sanitize_entry_schedule_payload(
+    payload: dict[str, object],
+    allowed_hours: set[int],
+) -> dict[str, object]:
+    if not payload:
+        return {
+            "changed": False,
+            "reason": "",
+            "evidence_source": "",
+            "proposed_hours": [],
+        }
+    proposed_hours = [
+        hour for hour in _normalize_hour_list(payload.get("proposed_hours", [])) if not allowed_hours or hour in allowed_hours
+    ]
+    reason = str(payload.get("reason", ""))
+    evidence_source = str(payload.get("evidence_source", ""))
+    if not proposed_hours and allowed_hours and not _entry_schedule_payload_matches_runtime(payload, allowed_hours):
+        reason = "latest schedule artifact is not compatible with current runtime hours"
+        evidence_source = ""
+    return {
+        "changed": bool(payload.get("changed", False)) and bool(proposed_hours),
+        "reason": reason,
+        "evidence_source": evidence_source,
+        "proposed_hours": proposed_hours,
+    }
+
+
+def _normalize_symbol_list(values: object) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        symbol = str(value).strip().upper()
+        if not symbol or symbol in seen:
+            continue
+        seen.add(symbol)
+        result.append(symbol)
+    return result
+
+
+def _normalize_hour_list(values: object) -> list[int]:
+    if not isinstance(values, list):
+        return []
+    result: list[int] = []
+    seen: set[int] = set()
+    for value in values:
+        hour = int(value)
+        if hour in seen:
+            continue
+        seen.add(hour)
+        result.append(hour)
+    return result
 
 
 def _positions_from_state(positions_payload: dict[str, Any]) -> list[dict[str, object]]:

@@ -202,6 +202,257 @@ class DashboardTest(unittest.TestCase):
             self.assertIn("LKOH", html)
             self.assertIn("blocked_long_symbols", html)
 
+    def test_dashboard_ignores_stale_futures_autonomy_artifacts_for_stock_runtime(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            config_dir = root / "configs"
+            state_dir = root / "state"
+            runs_dir = root / "runs"
+            config_dir.mkdir(parents=True)
+            state_dir.mkdir(parents=True)
+            runs_dir.mkdir(parents=True)
+
+            config_path = config_dir / "paper.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[app]",
+                        'timezone = "Europe/Moscow"',
+                        "",
+                        "[tbank]",
+                        'account_name = "Акции"',
+                        "",
+                        "[data]",
+                        'source = "csv"',
+                        'csv_path = "data/demo.csv"',
+                        "",
+                        "[[data.instruments]]",
+                        'symbol = "LKOH"',
+                        'instrument_type = "stock"',
+                        "",
+                        "[[data.instruments]]",
+                        'symbol = "TATN"',
+                        'instrument_type = "stock"',
+                        "",
+                        "[strategy]",
+                        'style = "ema_adx_macd"',
+                        "allowed_entry_hours = [10, 11, 12]",
+                        "",
+                        "[execution]",
+                        'mode = "local-paper"',
+                        "allow_live_trading = false",
+                        'state_path = "state/demo_state.json"',
+                        "",
+                        "[backtest]",
+                        "",
+                        "[reporting]",
+                        'output_dir = "runs"',
+                        "",
+                        "[research]",
+                        "",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            (state_dir / "demo_state.json").write_text(
+                json.dumps({"portfolio": {"cash": 300000.0, "positions": {}}}, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            (state_dir / "demo_state_signal_feedback.json").write_text(
+                json.dumps({"pending": [], "resolved": []}),
+                encoding="utf-8",
+            )
+
+            self._write_json(
+                runs_dir / "autotune" / "entry-symbols" / "20260615-090000" / "symbol_restrictions.json",
+                {
+                    "changed": True,
+                    "reason": "stock restriction",
+                    "evidence_source": "signal-feedback",
+                    "proposed_blocked_symbols": [],
+                    "proposed_blocked_long_symbols": ["LKOH"],
+                    "proposed_blocked_short_symbols": [],
+                    "symbol_direction_breakdown": [
+                        {
+                            "symbol": "LKOH",
+                            "direction": "long",
+                            "trades": 4,
+                            "win_rate_pct": 25.0,
+                            "net_pnl_rub": -120.0,
+                            "profit_factor": 0.7,
+                            "expectancy_rub": -30.0,
+                        }
+                    ],
+                },
+            )
+            self._write_json(
+                runs_dir / "autotune" / "entry-symbols" / "20260615-100000" / "symbol_restrictions.json",
+                {
+                    "changed": True,
+                    "reason": "stale futures restriction",
+                    "evidence_source": "signal-feedback",
+                    "proposed_blocked_symbols": [],
+                    "proposed_blocked_long_symbols": ["CNYRUBF"],
+                    "proposed_blocked_short_symbols": [],
+                    "symbol_direction_breakdown": [
+                        {
+                            "symbol": "CNYRUBF",
+                            "direction": "long",
+                            "trades": 12,
+                            "win_rate_pct": 33.3,
+                            "net_pnl_rub": -420.0,
+                            "profit_factor": 0.5,
+                            "expectancy_rub": -35.0,
+                        }
+                    ],
+                },
+            )
+            self._write_json(
+                runs_dir / "autotune" / "entry-schedule" / "20260615-090000" / "schedule_tuning.json",
+                {
+                    "changed": True,
+                    "reason": "stock schedule",
+                    "evidence_source": "signal-feedback",
+                    "proposed_hours": [10, 11],
+                },
+            )
+            self._write_json(
+                runs_dir / "autotune" / "entry-schedule" / "20260615-100000" / "schedule_tuning.json",
+                {
+                    "changed": True,
+                    "reason": "stale futures schedule",
+                    "evidence_source": "signal-feedback",
+                    "proposed_hours": [9, 20],
+                },
+            )
+
+            payload = build_dashboard_payload(config_path)
+            html = render_dashboard_html(payload)
+
+            self.assertEqual(
+                payload["autonomy"]["entry_symbols"]["proposed_blocked_long_symbols"],
+                ["LKOH"],
+            )
+            self.assertEqual(
+                payload["autonomy"]["entry_schedule"]["proposed_hours"],
+                [10, 11],
+            )
+            self.assertNotIn("CNYRUBF", html)
+            self.assertIn("LKOH", html)
+
+    def test_dashboard_sanitizes_incompatible_only_autonomy_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            config_dir = root / "configs"
+            state_dir = root / "state"
+            runs_dir = root / "runs"
+            config_dir.mkdir(parents=True)
+            state_dir.mkdir(parents=True)
+            runs_dir.mkdir(parents=True)
+
+            config_path = config_dir / "paper.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[app]",
+                        'timezone = "Europe/Moscow"',
+                        "",
+                        "[tbank]",
+                        'account_name = "Акции"',
+                        "",
+                        "[data]",
+                        'source = "csv"',
+                        'csv_path = "data/demo.csv"',
+                        "",
+                        "[[data.instruments]]",
+                        'symbol = "LKOH"',
+                        'instrument_type = "stock"',
+                        "",
+                        "[[data.instruments]]",
+                        'symbol = "TATN"',
+                        'instrument_type = "stock"',
+                        "",
+                        "[strategy]",
+                        'style = "ema_adx_macd"',
+                        "allowed_entry_hours = [10, 11, 12]",
+                        "",
+                        "[execution]",
+                        'mode = "local-paper"',
+                        "allow_live_trading = false",
+                        'state_path = "state/demo_state.json"',
+                        "",
+                        "[backtest]",
+                        "",
+                        "[reporting]",
+                        'output_dir = "runs"',
+                        "",
+                        "[research]",
+                        "",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            (state_dir / "demo_state.json").write_text(
+                json.dumps({"portfolio": {"cash": 300000.0, "positions": {}}}, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            (state_dir / "demo_state_signal_feedback.json").write_text(
+                json.dumps({"pending": [], "resolved": []}),
+                encoding="utf-8",
+            )
+
+            self._write_json(
+                runs_dir / "autotune" / "entry-symbols" / "20260615-100000" / "symbol_restrictions.json",
+                {
+                    "changed": True,
+                    "reason": "stale futures restriction",
+                    "evidence_source": "signal-feedback",
+                    "proposed_blocked_symbols": [],
+                    "proposed_blocked_long_symbols": ["CNYRUBF"],
+                    "proposed_blocked_short_symbols": [],
+                    "symbol_direction_breakdown": [
+                        {
+                            "symbol": "CNYRUBF",
+                            "direction": "long",
+                            "trades": 12,
+                            "win_rate_pct": 33.3,
+                            "net_pnl_rub": -420.0,
+                            "profit_factor": 0.5,
+                            "expectancy_rub": -35.0,
+                        }
+                    ],
+                },
+            )
+            self._write_json(
+                runs_dir / "autotune" / "entry-schedule" / "20260615-100000" / "schedule_tuning.json",
+                {
+                    "changed": True,
+                    "reason": "stale futures schedule",
+                    "evidence_source": "signal-feedback",
+                    "proposed_hours": [9, 20],
+                },
+            )
+
+            payload = build_dashboard_payload(config_path)
+            html = render_dashboard_html(payload)
+
+            self.assertEqual(payload["autonomy"]["entry_symbols"]["proposed_blocked_long_symbols"], [])
+            self.assertEqual(payload["autonomy"]["entry_symbols"]["symbol_direction_breakdown"], [])
+            self.assertIn(
+                "not compatible with current runtime universe",
+                payload["autonomy"]["entry_symbols"]["reason"],
+            )
+            self.assertEqual(payload["autonomy"]["entry_schedule"]["proposed_hours"], [])
+            self.assertIn(
+                "not compatible with current runtime hours",
+                payload["autonomy"]["entry_schedule"]["reason"],
+            )
+            self.assertNotIn("CNYRUBF", html)
+
     @staticmethod
     def _write_json(path: Path, payload: dict[str, object]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
