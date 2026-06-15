@@ -206,6 +206,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Minimum normalized monthly return required on the latest walk-forward fold",
     )
     tune_universe_parser.add_argument(
+        "--min-walk-forward-folds",
+        type=int,
+        default=3,
+        help="Minimum number of walk-forward folds required before changing the active universe",
+    )
+    tune_universe_parser.add_argument(
+        "--min-latest-fold-trades",
+        type=int,
+        default=4,
+        help="Minimum number of latest-fold test trades required before changing the active universe",
+    )
+    tune_universe_parser.add_argument(
         "--skip-optimizer-overlap",
         action="store_true",
         help="Allow the latest walk-forward winner to drive the universe even without optimizer overlap",
@@ -396,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
                     max_allowed_symbols=args.max_allowed_symbols,
                     min_walk_forward_positive_probability_pct=args.min_walk_forward_positive_probability_pct,
                     min_latest_fold_monthly_return_pct=args.min_latest_fold_monthly_return_pct,
+                    min_walk_forward_folds=args.min_walk_forward_folds,
+                    min_latest_fold_trades=args.min_latest_fold_trades,
                     require_optimizer_overlap=not args.skip_optimizer_overlap,
                 ),
                 ensure_ascii=False,

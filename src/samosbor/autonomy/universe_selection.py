@@ -13,12 +13,18 @@ def build_universe_selection_tuning_payload(
     max_allowed_symbols: int = 3,
     min_walk_forward_positive_probability_pct: float = 55.0,
     min_latest_fold_monthly_return_pct: float = 0.0,
+    min_walk_forward_folds: int = 3,
+    min_latest_fold_trades: int = 4,
     require_optimizer_overlap: bool = True,
 ) -> dict[str, object]:
     if max_allowed_symbols < 1:
         raise ValueError("max_allowed_symbols must be >= 1")
     if min_walk_forward_positive_probability_pct < 0:
         raise ValueError("min_walk_forward_positive_probability_pct must be >= 0")
+    if min_walk_forward_folds < 1:
+        raise ValueError("min_walk_forward_folds must be >= 1")
+    if min_latest_fold_trades < 1:
+        raise ValueError("min_latest_fold_trades must be >= 1")
 
     configured = _normalized_symbols(configured_symbols)
     current_raw = _normalized_symbols(current_allowed_symbols)
@@ -45,10 +51,20 @@ def build_universe_selection_tuning_payload(
         if isinstance(walk_forward_summary, dict)
         else 0.0
     )
+    folds_evaluated = int(
+        walk_forward_summary.get("folds_evaluated", 0)
+        if isinstance(walk_forward_summary, dict)
+        else 0
+    )
     latest_fold_monthly_return_pct = float(
         latest_test_summary.get("normalized_monthly_return_pct", 0.0)
         if isinstance(latest_test_summary, dict)
         else 0.0
+    )
+    latest_fold_trades = int(
+        latest_test_summary.get("trades", 0)
+        if isinstance(latest_test_summary, dict)
+        else 0
     )
 
     consensus_symbols: list[str] = []
@@ -59,10 +75,14 @@ def build_universe_selection_tuning_payload(
         reason = "optimizer did not produce a usable symbol subset"
     elif not walk_forward_symbols:
         reason = "walk-forward did not produce a usable latest-fold symbol subset"
+    elif folds_evaluated < min_walk_forward_folds:
+        reason = "walk-forward history is too short for a universe change"
     elif positive_probability_pct < min_walk_forward_positive_probability_pct:
         reason = "walk-forward positive-fold probability is too weak for a universe change"
     elif latest_fold_monthly_return_pct < min_latest_fold_monthly_return_pct:
         reason = "latest walk-forward fold is too weak for a universe change"
+    elif latest_fold_trades < min_latest_fold_trades:
+        reason = "latest walk-forward fold has too few trades for a universe change"
     else:
         if require_optimizer_overlap:
             consensus_symbols = [
@@ -100,6 +120,8 @@ def build_universe_selection_tuning_payload(
             "max_allowed_symbols": max_allowed_symbols,
             "min_walk_forward_positive_probability_pct": min_walk_forward_positive_probability_pct,
             "min_latest_fold_monthly_return_pct": min_latest_fold_monthly_return_pct,
+            "min_walk_forward_folds": min_walk_forward_folds,
+            "min_latest_fold_trades": min_latest_fold_trades,
             "require_optimizer_overlap": require_optimizer_overlap,
         },
         "configured_symbols": list(configured),
@@ -139,11 +161,7 @@ def build_universe_selection_tuning_payload(
             ),
         },
         "walk_forward_summary": {
-            "folds_evaluated": (
-                walk_forward_summary.get("folds_evaluated", 0)
-                if isinstance(walk_forward_summary, dict)
-                else 0
-            ),
+            "folds_evaluated": folds_evaluated,
             "average_test_normalized_monthly_return_pct": (
                 walk_forward_summary.get("average_test_normalized_monthly_return_pct", 0.0)
                 if isinstance(walk_forward_summary, dict)
@@ -151,11 +169,7 @@ def build_universe_selection_tuning_payload(
             ),
             "probability_positive_pct": positive_probability_pct,
             "latest_fold_monthly_return_pct": latest_fold_monthly_return_pct,
-            "latest_fold_test_trades": (
-                latest_test_summary.get("trades", 0)
-                if isinstance(latest_test_summary, dict)
-                else 0
-            ),
+            "latest_fold_test_trades": latest_fold_trades,
         },
     }
 
@@ -210,6 +224,7 @@ def _render_markdown(payload: dict[str, object]) -> str:
         f"- Walk-forward folds: {payload['walk_forward_summary']['folds_evaluated']}",
         f"- Walk-forward positive probability: {payload['walk_forward_summary']['probability_positive_pct']}%",
         f"- Latest fold normalized monthly return: {payload['walk_forward_summary']['latest_fold_monthly_return_pct']}%",
+        f"- Latest fold trades: {payload['walk_forward_summary']['latest_fold_test_trades']}",
         "",
     ]
     return "\n".join(lines)

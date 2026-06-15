@@ -117,6 +117,39 @@ class UniverseSelectionTuningTest(unittest.TestCase):
         self.assertEqual(payload["proposed_allowed_symbols"], [])
         self.assertIn("positive-fold probability", payload["reason"])
 
+    def test_universe_tuning_rejects_thin_latest_fold_evidence(self):
+        payload = build_universe_selection_tuning_payload(
+            configured_symbols=["USDRUBF", "CNYRUBF"],
+            current_allowed_symbols=[],
+            optimizer_payload={
+                "evaluated_candidates": 12,
+                "best_candidate": {
+                    "symbols": ["USDRUBF"],
+                    "summary": {},
+                },
+            },
+            walk_forward_payload={
+                "summary": {
+                    "folds_evaluated": 1,
+                    "probability_positive_pct": 100.0,
+                },
+                "folds": [
+                    {
+                        "best_candidate": {"symbols": ["USDRUBF"]},
+                        "test_summary": {
+                            "normalized_monthly_return_pct": 0.2,
+                            "trades": 2,
+                        },
+                    }
+                ],
+            },
+            max_allowed_symbols=1,
+        )
+
+        self.assertFalse(payload["changed"])
+        self.assertEqual(payload["proposed_allowed_symbols"], [])
+        self.assertIn("history is too short", payload["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -611,6 +611,8 @@ class TradingOrchestrator:
         max_allowed_symbols: int | None = None,
         min_walk_forward_positive_probability_pct: float = 55.0,
         min_latest_fold_monthly_return_pct: float = 0.0,
+        min_walk_forward_folds: int = 3,
+        min_latest_fold_trades: int = 4,
         require_optimizer_overlap: bool = True,
     ) -> dict[str, object]:
         assert_paper_only_mode(
@@ -632,6 +634,8 @@ class TradingOrchestrator:
             max_allowed_symbols=allowed_cap,
             min_walk_forward_positive_probability_pct=min_walk_forward_positive_probability_pct,
             min_latest_fold_monthly_return_pct=min_latest_fold_monthly_return_pct,
+            min_walk_forward_folds=min_walk_forward_folds,
+            min_latest_fold_trades=min_latest_fold_trades,
             require_optimizer_overlap=require_optimizer_overlap,
         )
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
