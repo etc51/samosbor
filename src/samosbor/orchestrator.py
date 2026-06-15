@@ -18,6 +18,7 @@ from .autonomy.entry_symbols import (
     write_entry_symbol_tuning,
 )
 from .autonomy.effective_config import (
+    align_effective_config_sources,
     base_strategy_values,
     build_effective_config_guardrail_payload,
     build_effective_strategy_overrides,
@@ -721,7 +722,10 @@ class TradingOrchestrator:
         source_path = Path(source_config_path).resolve()
         target_path = Path(output_path).resolve() if output_path else default_effective_config_path(source_path)
         autotune_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune"
-        sources = summarize_effective_config_sources(autotune_dir)
+        sources = align_effective_config_sources(
+            self.config,
+            summarize_effective_config_sources(autotune_dir),
+        )
         broker = self._load_paper_broker()
         rollback_report = build_paper_report_payload(
             broker.portfolio,

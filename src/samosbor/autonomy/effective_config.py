@@ -67,10 +67,76 @@ def build_effective_strategy_overrides(
     if summaries is None:
         autotune_dir = config.resolve_path(config.reporting.output_dir) / "autotune"
         summaries = summarize_effective_config_sources(autotune_dir)
+    summaries = align_effective_config_sources(config, summaries)
     overrides: dict[str, object] = {}
     for item in summaries:
         overrides.update(item["selected_values"])
     return overrides
+
+
+def align_effective_config_sources(
+    config: AppConfig,
+    source_summaries: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    base_values = base_strategy_values(config)
+    configured_symbols = {
+        instrument.symbol.strip().upper()
+        for instrument in config.data.instruments
+        if instrument.symbol.strip()
+    }
+    base_hours = [int(value) for value in config.strategy.allowed_entry_hours]
+    aligned: list[dict[str, object]] = []
+
+    for source in source_summaries:
+        current_values = _normalize_override_values(
+            source.get("current_values", {}),
+            configured_symbols=configured_symbols,
+            allowed_hours=[],
+        )
+        candidate_values = _normalize_override_values(
+            source.get("candidate_values", {}),
+            configured_symbols=configured_symbols,
+            allowed_hours=base_hours,
+        )
+        selected_values = _normalize_override_values(
+            source.get("selected_values", {}),
+            configured_symbols=configured_symbols,
+            allowed_hours=base_hours,
+        )
+        activation = dict(source.get("activation", {}))
+
+        if current_values and not _values_match_base(base_values, current_values):
+            selected_values = {}
+            activation.update(
+                {
+                    "confirmed": False,
+                    "pending_activation": False,
+                    "reason": "latest tuning payload does not match the current base runtime config",
+                }
+            )
+        elif selected_values:
+            selected_values = {
+                key: value for key, value in selected_values.items() if base_values.get(key) != value
+            }
+            if not selected_values:
+                activation.update(
+                    {
+                        "confirmed": False,
+                        "pending_activation": False,
+                        "reason": "latest tuning payload is not compatible with the current runtime universe",
+                    }
+                )
+
+        aligned.append(
+            {
+                **source,
+                "current_values": current_values,
+                "candidate_values": candidate_values,
+                "selected_values": selected_values,
+                "activation": activation,
+            }
+        )
+    return aligned
 
 
 def summarize_effective_config_sources(
@@ -323,6 +389,67 @@ def _candidate_confirmation_count(
             break
         count += 1
     return count
+
+
+def _values_match_base(
+    base_values: dict[str, object],
+    current_values: dict[str, object],
+) -> bool:
+    for key, value in current_values.items():
+        if base_values.get(key) != value:
+            return False
+    return True
+
+
+def _normalize_override_values(
+    values: dict[str, object],
+    *,
+    configured_symbols: set[str],
+    allowed_hours: list[int],
+) -> dict[str, object]:
+    normalized: dict[str, object] = {}
+    for key, value in values.items():
+        if key in {
+            "allowed_symbols",
+            "blocked_symbols",
+            "blocked_long_symbols",
+            "blocked_short_symbols",
+        } and isinstance(value, list):
+            normalized[key] = _normalize_symbol_list(value, configured_symbols)
+        elif key == "allowed_entry_hours" and isinstance(value, list):
+            normalized[key] = _normalize_hour_list(value, allowed_hours)
+        else:
+            normalized[key] = value
+    return normalized
+
+
+def _normalize_symbol_list(values: list[object], configured_symbols: set[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        symbol = str(raw).strip().upper()
+        if not symbol or symbol in seen:
+            continue
+        if configured_symbols and symbol not in configured_symbols:
+            continue
+        seen.add(symbol)
+        normalized.append(symbol)
+    return normalized
+
+
+def _normalize_hour_list(values: list[object], allowed_hours: list[int]) -> list[int]:
+    allowed = {int(value) for value in allowed_hours}
+    normalized: list[int] = []
+    seen: set[int] = set()
+    for raw in values:
+        hour = int(raw)
+        if hour in seen:
+            continue
+        if allowed and hour not in allowed:
+            continue
+        seen.add(hour)
+        normalized.append(hour)
+    return normalized
 
 
 def _strategy_current_values(payload: dict[str, object]) -> dict[str, object]:

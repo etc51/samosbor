@@ -7,6 +7,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from samosbor.autonomy.effective_config import (
+    align_effective_config_sources,
     base_strategy_values,
     build_effective_config_guardrail_payload,
     build_effective_strategy_overrides,
@@ -712,6 +713,99 @@ class EffectiveConfigTest(unittest.TestCase):
                 sources[4]["selected_values"],
                 {"allowed_symbols": ["CNYRUBF", "USDRUBF"]},
             )
+
+    def test_aligned_sources_ignore_stale_schedule_and_foreign_symbols(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            config_dir = root / "configs"
+            autotune_dir = root / "runs" / "autotune"
+            config_dir.mkdir(parents=True)
+
+            base_config = config_dir / "paper.toml"
+            base_config.write_text(
+                "\n".join(
+                    [
+                        "[app]",
+                        'timezone = "Europe/Moscow"',
+                        "",
+                        "[data]",
+                        'source = "csv"',
+                        'csv_path = "data/demo.csv"',
+                        "",
+                        "[[data.instruments]]",
+                        'symbol = "LKOH"',
+                        'instrument_type = "stock"',
+                        "",
+                        "[[data.instruments]]",
+                        'symbol = "TATN"',
+                        'instrument_type = "stock"',
+                        "",
+                        "[strategy]",
+                        'style = "ema_adx_macd"',
+                        "fast_window = 10",
+                        "slow_window = 40",
+                        "require_breakout = false",
+                        "atr_stop_multiple = 1.5",
+                        "reward_to_risk = 2.0",
+                        "min_signal_strength = 0.0",
+                        "min_trend_strength = 0.002",
+                        "adx_min = 20.0",
+                        "allowed_entry_hours = [10, 11, 12, 13, 14, 15, 16, 17]",
+                        "",
+                        "[execution]",
+                        'mode = "local-paper"',
+                        "allow_live_trading = false",
+                        'state_path = "state/paper_state.json"',
+                        "",
+                        "[backtest]",
+                        "",
+                        "[reporting]",
+                        'output_dir = "runs"',
+                        "",
+                        "[research]",
+                        "",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            for stamp in ("20260101-000001", "20260102-000001"):
+                self._write_json(
+                    autotune_dir / "entry-schedule" / stamp / "schedule_tuning.json",
+                    {
+                        "changed": True,
+                        "reason": "hours updated from paper results",
+                        "current_hours": [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
+                        "proposed_hours": [9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
+                    },
+                )
+                self._write_json(
+                    autotune_dir / "entry-symbols" / stamp / "symbol_restrictions.json",
+                    {
+                        "changed": True,
+                        "reason": "entry symbol restrictions updated from paper results",
+                        "current_blocked_symbols": [],
+                        "proposed_blocked_symbols": [],
+                        "current_blocked_long_symbols": [],
+                        "proposed_blocked_long_symbols": ["CNYRUBF"],
+                        "current_blocked_short_symbols": [],
+                        "proposed_blocked_short_symbols": [],
+                    },
+                )
+
+            config = load_config(base_config)
+            raw_sources = summarize_effective_config_sources(root / "runs" / "autotune")
+            aligned = align_effective_config_sources(config, raw_sources)
+            overrides = build_effective_strategy_overrides(config, source_summaries=raw_sources)
+
+            self.assertEqual(aligned[2]["source"], "entry-schedule")
+            self.assertEqual(aligned[2]["selected_values"], {})
+            self.assertIn("does not match", aligned[2]["activation"]["reason"])
+            self.assertEqual(aligned[5]["source"], "entry-symbols")
+            self.assertEqual(aligned[5]["selected_values"], {})
+            self.assertIn("not compatible", aligned[5]["activation"]["reason"])
+            self.assertEqual(overrides, {})
 
     @staticmethod
     def _write_json(path: Path, payload: dict[str, object]) -> None:
