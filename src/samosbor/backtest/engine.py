@@ -97,7 +97,10 @@ class BacktestEngine:
                             )
                             position = None
                         if position is None:
-                            entry_block_reason = self.strategy.entry_block_reason_at(timestamp)
+                            entry_block_reason = self.strategy.entry_block_reason_for_instrument(
+                                instruments_by_symbol[symbol],
+                                timestamp,
+                            )
                             if entry_block_reason is not None:
                                 events.append(
                                     {

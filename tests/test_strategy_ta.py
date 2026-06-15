@@ -207,6 +207,24 @@ class TrendFollowingTATest(unittest.TestCase):
             "entry blocked by session-flat window",
         )
 
+    def test_symbol_restriction_blocks_entry_for_specific_ticker(self):
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                blocked_symbols=["CNYRUBF"],
+                allowed_entry_hours=[12],
+                allowed_entry_weekdays=[2],
+                schedule_timezone="Europe/Moscow",
+            ),
+            timeframe="hour",
+        )
+
+        blocked_timestamp = datetime(2025, 1, 1, 9, 0, tzinfo=timezone.utc)
+
+        self.assertEqual(
+            strategy.entry_block_reason_for_instrument(self.instrument, blocked_timestamp),
+            "entry blocked by symbol restriction (CNYRUBF)",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

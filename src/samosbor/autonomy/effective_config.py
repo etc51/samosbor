@@ -19,6 +19,7 @@ _STRATEGY_OVERRIDE_ORDER = [
     "min_trend_strength",
     "adx_min",
     "allowed_entry_hours",
+    "blocked_symbols",
 ]
 _REQUIRED_CONFIRMATIONS = 2
 
@@ -43,6 +44,7 @@ def base_strategy_values(config: AppConfig) -> dict[str, object]:
         "min_trend_strength": config.strategy.min_trend_strength,
         "adx_min": config.strategy.adx_min,
         "allowed_entry_hours": list(config.strategy.allowed_entry_hours),
+        "blocked_symbols": list(config.strategy.blocked_symbols),
     }
 
 
@@ -97,6 +99,14 @@ def summarize_effective_config_sources(
             json_name="entry_quality_tuning.json",
             current_value_builder=_entry_quality_current_values,
             candidate_value_builder=_entry_quality_candidate_values,
+            required_confirmations=required_confirmations,
+        ),
+        _build_source_summary(
+            autotune_dir=autotune_dir,
+            source_name="entry-symbols",
+            json_name="symbol_restrictions.json",
+            current_value_builder=_entry_symbols_current_values,
+            candidate_value_builder=_entry_symbols_candidate_values,
             required_confirmations=required_confirmations,
         ),
     ]
@@ -347,6 +357,22 @@ def _entry_quality_current_values(payload: dict[str, object]) -> dict[str, objec
 
 def _entry_quality_candidate_values(payload: dict[str, object]) -> dict[str, object]:
     return {"min_signal_strength": float(payload.get("recommended_min_signal_strength", 0.0))}
+
+
+def _entry_symbols_current_values(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "blocked_symbols": [
+            str(value).strip().upper() for value in payload.get("current_blocked_symbols", [])
+        ]
+    }
+
+
+def _entry_symbols_candidate_values(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "blocked_symbols": [
+            str(value).strip().upper() for value in payload.get("proposed_blocked_symbols", [])
+        ]
+    }
 
 
 def _strategy_values(payload: dict[str, object]) -> dict[str, object]:

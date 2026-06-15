@@ -13,6 +13,10 @@ from .autonomy.entry_quality_tuning import (
     build_entry_quality_tuning_payload,
     write_entry_quality_tuning,
 )
+from .autonomy.entry_symbols import (
+    build_entry_symbol_tuning_payload,
+    write_entry_symbol_tuning,
+)
 from .autonomy.effective_config import (
     base_strategy_values,
     build_effective_config_guardrail_payload,
@@ -544,6 +548,35 @@ class TradingOrchestrator:
         payload["output_dir"] = str(output_dir)
         return payload
 
+    def tune_entry_symbols(
+        self,
+        *,
+        lookback_days: int = 45,
+        report_date: str | None = None,
+        timezone_name: str | None = None,
+        min_trades_per_symbol: int = 4,
+        max_symbols_to_block: int = 1,
+        max_total_blocked_symbols: int = 4,
+    ) -> dict[str, object]:
+        broker = self._load_paper_broker()
+        parsed_date = date.fromisoformat(report_date) if report_date else None
+        payload = build_entry_symbol_tuning_payload(
+            broker.portfolio,
+            broker.trades,
+            timezone_name=timezone_name or self.config.app.timezone,
+            current_blocked_symbols=self.config.strategy.blocked_symbols,
+            report_date=parsed_date,
+            lookback_days=lookback_days,
+            min_trades_per_symbol=min_trades_per_symbol,
+            max_symbols_to_block=max_symbols_to_block,
+            max_total_blocked_symbols=max_total_blocked_symbols,
+        )
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "entry-symbols" / stamp
+        write_entry_symbol_tuning(output_dir, payload)
+        payload["output_dir"] = str(output_dir)
+        return payload
+
     def bootstrap_entry_feedback(
         self,
         *,
@@ -560,7 +593,7 @@ class TradingOrchestrator:
         feedback_path = signal_feedback_path(state_path)
         payload = {"pending": [], "resolved": []} if replace_existing else load_signal_feedback(feedback_path)
         shadow_strategy = TrendFollowingStrategy(
-            replace(self.config.strategy, min_signal_strength=0.0),
+            replace(self.config.strategy, min_signal_strength=0.0, blocked_symbols=[]),
             timeframe=self.config.data.timeframe,
         )
         horizon_bars = default_signal_horizon_bars(self.config.data.timeframe)
@@ -677,6 +710,12 @@ class TradingOrchestrator:
             lookback_days=45,
             min_trades_per_hour=3,
         )
+        entry_symbols = self.tune_entry_symbols(
+            lookback_days=45,
+            min_trades_per_symbol=4,
+            max_symbols_to_block=1,
+            max_total_blocked_symbols=4,
+        )
         feedback_bootstrap = self.bootstrap_entry_feedback()
         entry_quality = self.tune_entry_quality(
             lookback_trades=40,
@@ -702,6 +741,7 @@ class TradingOrchestrator:
             "steps_executed": [
                 "paper-report",
                 "tune-entry-hours",
+                "tune-entry-symbols",
                 "bootstrap-entry-feedback",
                 "tune-entry-quality",
                 "optimize",
@@ -716,6 +756,7 @@ class TradingOrchestrator:
             },
             "restrictions": {
                 "entry_schedule": _entry_schedule_view(entry_schedule),
+                "entry_symbols": _entry_symbols_view(entry_symbols),
                 "entry_quality": _entry_quality_view(entry_quality),
                 "signal_feedback_bootstrap": _feedback_bootstrap_view(feedback_bootstrap),
             },
@@ -756,7 +797,7 @@ class TradingOrchestrator:
         timestamp = datetime.now(timezone.utc)
         strategy = self._strategy()
         shadow_strategy = TrendFollowingStrategy(
-            replace(self.config.strategy, min_signal_strength=0.0),
+            replace(self.config.strategy, min_signal_strength=0.0, blocked_symbols=[]),
             timeframe=self.config.data.timeframe,
         )
         for instrument in instruments:
@@ -852,15 +893,18 @@ class TradingOrchestrator:
                         timestamp=latest.timestamp,
                         horizon_bars=default_signal_horizon_bars(self.config.data.timeframe),
                     )
-                if not strategy.allows_entry_at(latest.timestamp):
-                    entry_block_reason = strategy.entry_block_reason_at(latest.timestamp)
+                entry_block_reason = strategy.entry_block_reason_for_instrument(
+                    instrument,
+                    latest.timestamp,
+                )
+                if entry_block_reason is not None:
                     cycle_events.append(
                         {
                             "timestamp": latest.timestamp.isoformat(),
                             "symbol": instrument.symbol,
                             "action": "signal",
                             "approved": False,
-                            "reason": entry_block_reason or "entry blocked by schedule",
+                            "reason": entry_block_reason,
                             "direction": signal.direction.value,
                             "strength": signal.strength,
                             "quantity_lots": 0,
@@ -1004,6 +1048,17 @@ def _entry_schedule_view(payload: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _entry_symbols_view(payload: dict[str, object]) -> dict[str, object]:
+    return {
+        "output_dir": payload.get("output_dir", ""),
+        "changed": payload.get("changed", False),
+        "reason": payload.get("reason", ""),
+        "current_blocked_symbols": payload.get("current_blocked_symbols", []),
+        "proposed_blocked_symbols": payload.get("proposed_blocked_symbols", []),
+        "additions": payload.get("additions", []),
+    }
+
+
 def _entry_quality_view(payload: dict[str, object]) -> dict[str, object]:
     lookback = payload.get("lookback", {})
     return {
@@ -1129,6 +1184,7 @@ def _render_nightly_autonomy_markdown(payload: dict[str, object]) -> str:
         "",
         "## Restrictions",
         f"- Entry hours changed: {restrictions['entry_schedule']['changed']} ({restrictions['entry_schedule']['reason']})",
+        f"- Entry symbols changed: {restrictions['entry_symbols']['changed']} ({restrictions['entry_symbols']['reason']})",
         f"- Entry quality changed: {restrictions['entry_quality']['changed']} ({restrictions['entry_quality']['reason']})",
         f"- Signal feedback resolved: {restrictions['signal_feedback_bootstrap']['resolved_signals']}",
         "",

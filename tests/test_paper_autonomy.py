@@ -9,6 +9,10 @@ from samosbor.autonomy.entry_schedule import (
     build_entry_schedule_tuning_payload,
     write_entry_schedule_tuning,
 )
+from samosbor.autonomy.entry_symbols import (
+    build_entry_symbol_tuning_payload,
+    write_entry_symbol_tuning,
+)
 from samosbor.domain import PortfolioState, SignalDirection, TradeRecord
 from samosbor.reporting.paper_report import build_paper_report_payload, write_paper_report
 
@@ -161,6 +165,78 @@ class EntryScheduleAutonomyTest(unittest.TestCase):
             write_entry_schedule_tuning(output_dir, payload)
             self.assertTrue((output_dir / "schedule_tuning.json").exists())
             self.assertTrue((output_dir / "schedule_patch.toml").exists())
+            self.assertTrue((output_dir / "summary.md").exists())
+
+
+class EntrySymbolAutonomyTest(unittest.TestCase):
+    def test_tuning_recommends_blocking_weak_symbols(self):
+        portfolio = PortfolioState(cash=100_000.0, peak_equity=100_000.0)
+        trades = [
+            _trade(
+                symbol="CNYRUBF",
+                entry_time=datetime(2025, 1, 10, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 10, 8, 0, tzinfo=timezone.utc),
+                net_pnl=200.0,
+            ),
+            _trade(
+                symbol="CNYRUBF",
+                entry_time=datetime(2025, 1, 11, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 11, 8, 0, tzinfo=timezone.utc),
+                net_pnl=150.0,
+            ),
+            _trade(
+                symbol="CNYRUBF",
+                entry_time=datetime(2025, 1, 12, 6, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 12, 8, 0, tzinfo=timezone.utc),
+                net_pnl=100.0,
+            ),
+            _trade(
+                symbol="IMOEXF",
+                entry_time=datetime(2025, 1, 10, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 10, 9, 0, tzinfo=timezone.utc),
+                net_pnl=-100.0,
+            ),
+            _trade(
+                symbol="IMOEXF",
+                entry_time=datetime(2025, 1, 11, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 11, 9, 0, tzinfo=timezone.utc),
+                net_pnl=-90.0,
+            ),
+            _trade(
+                symbol="IMOEXF",
+                entry_time=datetime(2025, 1, 12, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 12, 9, 0, tzinfo=timezone.utc),
+                net_pnl=-80.0,
+            ),
+            _trade(
+                symbol="IMOEXF",
+                entry_time=datetime(2025, 1, 13, 7, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2025, 1, 13, 9, 0, tzinfo=timezone.utc),
+                net_pnl=-70.0,
+            ),
+        ]
+
+        payload = build_entry_symbol_tuning_payload(
+            portfolio,
+            trades,
+            timezone_name="Europe/Moscow",
+            current_blocked_symbols=[],
+            report_date=date(2025, 1, 31),
+            lookback_days=45,
+            min_trades_per_symbol=4,
+            max_symbols_to_block=1,
+            max_total_blocked_symbols=4,
+        )
+
+        self.assertTrue(payload["changed"])
+        self.assertEqual(payload["additions"], ["IMOEXF"])
+        self.assertEqual(payload["proposed_blocked_symbols"], ["IMOEXF"])
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            write_entry_symbol_tuning(output_dir, payload)
+            self.assertTrue((output_dir / "symbol_restrictions.json").exists())
+            self.assertTrue((output_dir / "symbol_restrictions_patch.toml").exists())
             self.assertTrue((output_dir / "summary.md").exists())
 
 

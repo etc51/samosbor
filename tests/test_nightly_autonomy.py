@@ -64,6 +64,26 @@ class FakeNightlyOrchestrator(TradingOrchestrator):
             "output_dir": "runs/autotune/entry-feedback-bootstrap/fake",
         }
 
+    def tune_entry_symbols(
+        self,
+        *,
+        lookback_days=45,
+        report_date=None,
+        timezone_name=None,
+        min_trades_per_symbol=4,
+        max_symbols_to_block=1,
+        max_total_blocked_symbols=4,
+    ):
+        self.calls.append("tune-entry-symbols")
+        return {
+            "changed": False,
+            "reason": "insufficient evidence for symbol restriction change",
+            "current_blocked_symbols": [],
+            "proposed_blocked_symbols": [],
+            "additions": [],
+            "output_dir": "runs/autotune/entry-symbols/fake",
+        }
+
     def tune_entry_quality(
         self,
         *,
@@ -241,6 +261,7 @@ class NightlyAutonomyTest(unittest.TestCase):
                 [
                     "paper-report",
                     "tune-entry-hours",
+                    "tune-entry-symbols",
                     "bootstrap-entry-feedback",
                     "tune-entry-quality",
                     "optimize",
@@ -253,6 +274,7 @@ class NightlyAutonomyTest(unittest.TestCase):
             )
             self.assertEqual(result["analysis"]["paper_report"]["summary"]["trades"], 6)
             self.assertEqual(result["restrictions"]["entry_schedule"]["proposed_hours"], [10, 12])
+            self.assertEqual(result["restrictions"]["entry_symbols"]["proposed_blocked_symbols"], [])
             self.assertEqual(result["research"]["optimizer"]["evaluated_candidates"], 24)
             self.assertEqual(result["research"]["walk_forward"]["summary"]["folds_evaluated"], 4)
             self.assertEqual(result["research"]["monte_carlo"]["monte_carlo_summary"]["probability_positive_pct"], 64.0)

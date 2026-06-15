@@ -95,6 +95,31 @@ def build_parser() -> argparse.ArgumentParser:
         default=2,
         help="Maximum number of negative hours to remove in one recommendation pass",
     )
+    tune_entry_symbols_parser = subparsers.add_parser(
+        "tune-entry-symbols",
+        help="Recommend safer blocked_symbols from recent paper-trading results",
+    )
+    tune_entry_symbols_parser.add_argument("--days", type=int, default=45, help="Lookback window in days")
+    tune_entry_symbols_parser.add_argument("--date", help="Anchor ISO date in report timezone, defaults to today")
+    tune_entry_symbols_parser.add_argument("--timezone", help="IANA timezone override, defaults to config app.timezone")
+    tune_entry_symbols_parser.add_argument(
+        "--min-trades-per-symbol",
+        type=int,
+        default=4,
+        help="Minimum closed trades per symbol before considering a restriction change",
+    )
+    tune_entry_symbols_parser.add_argument(
+        "--max-symbols-to-block",
+        type=int,
+        default=1,
+        help="Maximum number of new weak symbols to block in one recommendation pass",
+    )
+    tune_entry_symbols_parser.add_argument(
+        "--max-total-blocked-symbols",
+        type=int,
+        default=4,
+        help="Maximum total blocked symbols after applying the recommendation",
+    )
     tune_entry_quality_parser = subparsers.add_parser(
         "tune-entry-quality",
         help="Recommend a safer min_signal_strength from recent paper-trading results",
@@ -266,6 +291,22 @@ def main(argv: list[str] | None = None) -> int:
                     min_trades_per_hour=args.min_trades_per_hour,
                     max_hours_to_add=args.max_hours_to_add,
                     max_hours_to_remove=args.max_hours_to_remove,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "tune-entry-symbols":
+        print(
+            json.dumps(
+                orchestrator.tune_entry_symbols(
+                    lookback_days=args.days,
+                    report_date=args.date,
+                    timezone_name=args.timezone,
+                    min_trades_per_symbol=args.min_trades_per_symbol,
+                    max_symbols_to_block=args.max_symbols_to_block,
+                    max_total_blocked_symbols=args.max_total_blocked_symbols,
                 ),
                 ensure_ascii=False,
                 indent=2,

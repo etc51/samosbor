@@ -77,6 +77,7 @@ class StrategySection:
     schedule_timezone: str = "Europe/Moscow"
     allowed_entry_hours: list[int] = field(default_factory=list)
     allowed_entry_weekdays: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
+    blocked_symbols: list[str] = field(default_factory=list)
     forced_flat_hours: list[int] = field(default_factory=list)
     forced_flat_weekdays: list[int] = field(default_factory=list)
 

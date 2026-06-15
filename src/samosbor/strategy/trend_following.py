@@ -40,6 +40,7 @@ class TrendFollowingStrategy:
         if self.style not in {"sma_breakout", "ema_adx_macd"}:
             raise ValueError(f"Unsupported strategy style: {config.style}")
         self.schedule_timezone = ZoneInfo(config.schedule_timezone)
+        self.blocked_symbols = {symbol.strip().upper() for symbol in config.blocked_symbols if symbol.strip()}
 
     def prepare_history(self, instrument: Instrument, candles: list[Candle]) -> None:
         if self.style != "ema_adx_macd" or not candles:
@@ -77,6 +78,15 @@ class TrendFollowingStrategy:
         if self.config.allowed_entry_hours and localized.hour not in self.config.allowed_entry_hours:
             return "entry blocked by hour schedule"
         return None
+
+    def entry_block_reason_for_instrument(
+        self,
+        instrument: Instrument,
+        timestamp: datetime,
+    ) -> str | None:
+        if instrument.symbol.strip().upper() in self.blocked_symbols:
+            return f"entry blocked by symbol restriction ({instrument.symbol})"
+        return self.entry_block_reason_at(timestamp)
 
     def _required_bars(self) -> int:
         required = max(
