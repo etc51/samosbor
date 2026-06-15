@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -93,9 +94,21 @@ LOGGER = logging.getLogger(__name__)
 class TradingOrchestrator:
     def __init__(self, config: AppConfig):
         self.config = config
+        self._market_bundle_cache = None
+        self._market_bundle_cache_depth = 0
 
     def _autotune_dir(self) -> Path:
         return self.config.autotune_dir()
+
+    @contextmanager
+    def _market_bundle_cache_scope(self):
+        self._market_bundle_cache_depth += 1
+        try:
+            yield
+        finally:
+            self._market_bundle_cache_depth = max(0, self._market_bundle_cache_depth - 1)
+            if self._market_bundle_cache_depth == 0:
+                self._market_bundle_cache = None
 
     def _data_provider(self):
         if self.config.data.source == "csv":
@@ -135,11 +148,17 @@ class TradingOrchestrator:
         )
 
     def _load_market_bundle(self):
+        if self._market_bundle_cache_depth > 0 and self._market_bundle_cache is not None:
+            return self._market_bundle_cache
+
         provider = self._data_provider()
         instruments = provider.resolve_universe(self.config.data.instruments)
         candles_by_symbol = provider.load_history(instruments)
         instruments_by_symbol = {instrument.symbol: instrument for instrument in instruments}
-        return provider, instruments, candles_by_symbol, instruments_by_symbol
+        bundle = (provider, instruments, candles_by_symbol, instruments_by_symbol)
+        if self._market_bundle_cache_depth > 0:
+            self._market_bundle_cache = bundle
+        return bundle
 
     def _run_backtest_bundle(
         self,
@@ -624,8 +643,9 @@ class TradingOrchestrator:
             allow_live_trading=self.config.execution.allow_live_trading,
             live_flag=False,
         )
-        optimizer = optimizer_payload or self.optimize_strategy()
-        walk_forward = walk_forward_payload or self.run_walk_forward(adaptive_history=True)
+        with self._market_bundle_cache_scope():
+            optimizer = optimizer_payload or self.optimize_strategy()
+            walk_forward = walk_forward_payload or self.run_walk_forward(adaptive_history=True)
         allowed_cap = max_allowed_symbols or max(
             1,
             min(self.config.risk.max_positions, self.config.research.subset_max_size),
@@ -786,35 +806,36 @@ class TradingOrchestrator:
         base_config = Path(base_config_path).resolve()
         effective_config = Path(effective_output_path).resolve()
 
-        paper_report = self.run_paper_report(days=1)
-        feedback_bootstrap = self.bootstrap_entry_feedback()
-        entry_schedule = self.tune_entry_schedule(
-            lookback_days=45,
-            min_trades_per_hour=3,
-        )
-        entry_symbols = self.tune_entry_symbols(
-            lookback_days=45,
-            min_trades_per_symbol=4,
-            max_symbols_to_block=1,
-            max_total_blocked_symbols=4,
-        )
-        entry_quality = self.tune_entry_quality(
-            lookback_trades=40,
-            min_trades=8,
-        )
-        optimizer = self.optimize_strategy()
-        walk_forward = self.run_walk_forward(adaptive_history=True)
-        runtime_universe = self.tune_runtime_universe(
-            optimizer_payload=optimizer,
-            walk_forward_payload=walk_forward,
-        )
-        monte_carlo = self.run_monte_carlo()
-        strategy_tuning = self.tune_strategy()
-        exit_tuning = self.tune_exits()
-        effective_config_result = self.refresh_effective_config(
-            source_config_path=base_config,
-            output_path=effective_config,
-        )
+        with self._market_bundle_cache_scope():
+            paper_report = self.run_paper_report(days=1)
+            feedback_bootstrap = self.bootstrap_entry_feedback()
+            entry_schedule = self.tune_entry_schedule(
+                lookback_days=45,
+                min_trades_per_hour=3,
+            )
+            entry_symbols = self.tune_entry_symbols(
+                lookback_days=45,
+                min_trades_per_symbol=4,
+                max_symbols_to_block=1,
+                max_total_blocked_symbols=4,
+            )
+            entry_quality = self.tune_entry_quality(
+                lookback_trades=40,
+                min_trades=8,
+            )
+            optimizer = self.optimize_strategy()
+            walk_forward = self.run_walk_forward(adaptive_history=True)
+            runtime_universe = self.tune_runtime_universe(
+                optimizer_payload=optimizer,
+                walk_forward_payload=walk_forward,
+            )
+            monte_carlo = self.run_monte_carlo()
+            strategy_tuning = self.tune_strategy()
+            exit_tuning = self.tune_exits()
+            effective_config_result = self.refresh_effective_config(
+                source_config_path=base_config,
+                output_path=effective_config,
+            )
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         output_dir = self._autotune_dir() / "nightly-autonomy" / stamp
