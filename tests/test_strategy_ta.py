@@ -130,6 +130,42 @@ class TrendFollowingTATest(unittest.TestCase):
         self.assertEqual(signal.direction, SignalDirection.SHORT)
         self.assertLess(signal.take_profit, signal.entry_price)
 
+    def test_rsi_mean_reversion_can_open_long(self):
+        candles = make_candles(trend=-0.8, final_close=38.0)
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                style="rsi_mean_reversion",
+                min_liquidity_rub=1.0,
+                min_trend_strength=0.002,
+                rsi_short_min=35.0,
+            ),
+            timeframe="hour",
+        )
+
+        signal = strategy.generate_signal(self.instrument, candles)
+
+        self.assertIsNotNone(signal)
+        self.assertEqual(signal.direction, SignalDirection.LONG)
+        self.assertGreater(signal.take_profit, signal.entry_price)
+
+    def test_rsi_mean_reversion_can_open_short(self):
+        candles = make_candles(trend=0.8, final_close=162.0)
+        strategy = TrendFollowingStrategy(
+            StrategySection(
+                style="rsi_mean_reversion",
+                min_liquidity_rub=1.0,
+                min_trend_strength=0.002,
+                rsi_long_max=65.0,
+            ),
+            timeframe="hour",
+        )
+
+        signal = strategy.generate_signal(self.instrument, candles)
+
+        self.assertIsNotNone(signal)
+        self.assertEqual(signal.direction, SignalDirection.SHORT)
+        self.assertLess(signal.take_profit, signal.entry_price)
+
     def test_min_signal_strength_can_block_entry(self):
         candles = make_candles(trend=0.2, final_close=114.5)
         strategy = TrendFollowingStrategy(

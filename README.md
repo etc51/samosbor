@@ -216,12 +216,15 @@ SSL_TBANK_VERIFY=True
 
 - `sma_breakout` — исходный трендовый режим на SMA + breakout + ATR
 - `ema_adx_macd` — режим на `pandas-ta` с EMA, ADX, RSI и MACD-фильтрами
+- `rsi_mean_reversion` — контртрендовый режим на возврат к средней через SMA + RSI-экстремумы
 
 Поля research-grid для TA-оптимизации:
 
 - `strategy_styles`
 - `require_breakout_values`
 - `adx_min_values`
+- `rsi_long_max_values`
+- `rsi_short_min_values`
 - `walk_forward_train_months`
 - `walk_forward_test_months`
 - `walk_forward_step_months`

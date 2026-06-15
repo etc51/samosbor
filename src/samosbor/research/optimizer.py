@@ -24,6 +24,8 @@ class OptimizationCandidate:
     reward_to_risk: float
     min_trend_strength: float
     adx_min: float
+    rsi_long_max: float
+    rsi_short_min: float
     summary: dict[str, float | int]
 
     def to_dict(self) -> dict[str, object]:
@@ -56,14 +58,20 @@ class ParameterOptimizer:
     def strategy_from_candidate_payload(self, payload: dict[str, object]) -> StrategySection:
         return replace(
             self.base_strategy,
-            style=str(payload["style"]).strip().lower(),
-            fast_window=int(payload["fast_window"]),
-            slow_window=int(payload["slow_window"]),
-            require_breakout=bool(payload["require_breakout"]),
-            atr_stop_multiple=float(payload["atr_stop_multiple"]),
-            reward_to_risk=float(payload["reward_to_risk"]),
-            min_trend_strength=float(payload["min_trend_strength"]),
-            adx_min=float(payload["adx_min"]),
+            style=str(payload.get("style", self.base_strategy.style)).strip().lower(),
+            fast_window=int(payload.get("fast_window", self.base_strategy.fast_window)),
+            slow_window=int(payload.get("slow_window", self.base_strategy.slow_window)),
+            require_breakout=bool(payload.get("require_breakout", self.base_strategy.require_breakout)),
+            atr_stop_multiple=float(
+                payload.get("atr_stop_multiple", self.base_strategy.atr_stop_multiple)
+            ),
+            reward_to_risk=float(payload.get("reward_to_risk", self.base_strategy.reward_to_risk)),
+            min_trend_strength=float(
+                payload.get("min_trend_strength", self.base_strategy.min_trend_strength)
+            ),
+            adx_min=float(payload.get("adx_min", self.base_strategy.adx_min)),
+            rsi_long_max=float(payload.get("rsi_long_max", self.base_strategy.rsi_long_max)),
+            rsi_short_min=float(payload.get("rsi_short_min", self.base_strategy.rsi_short_min)),
         )
 
     def run(
@@ -88,19 +96,46 @@ class ParameterOptimizer:
                 }
                 for style in styles:
                     normalized_style = style.strip().lower()
+                    require_breakout_values = (
+                        breakout_values
+                        if normalized_style in {"sma_breakout", "ema_adx_macd"}
+                        else [self.base_strategy.require_breakout]
+                    )
                     adx_values = (
                         self.research.adx_min_values
                         if normalized_style == "ema_adx_macd"
                         else [self.base_strategy.adx_min]
                     )
-                    for fast, slow, require_breakout, atr_mult, rr, trend_strength, adx_min in product(
+                    rsi_long_max_values = (
+                        self.research.rsi_long_max_values
+                        if normalized_style == "rsi_mean_reversion"
+                        else [self.base_strategy.rsi_long_max]
+                    )
+                    rsi_short_min_values = (
+                        self.research.rsi_short_min_values
+                        if normalized_style == "rsi_mean_reversion"
+                        else [self.base_strategy.rsi_short_min]
+                    )
+                    for (
+                        fast,
+                        slow,
+                        require_breakout,
+                        atr_mult,
+                        rr,
+                        trend_strength,
+                        adx_min,
+                        rsi_long_max,
+                        rsi_short_min,
+                    ) in product(
                         self.research.fast_windows,
                         self.research.slow_windows,
-                        breakout_values,
+                        require_breakout_values,
                         self.research.atr_stop_multipliers,
                         self.research.reward_to_risk_values,
                         self.research.trend_strength_values,
                         adx_values,
+                        rsi_long_max_values,
+                        rsi_short_min_values,
                     ):
                         if fast >= slow:
                             continue
@@ -115,6 +150,8 @@ class ParameterOptimizer:
                             reward_to_risk=rr,
                             min_trend_strength=trend_strength,
                             adx_min=adx_min,
+                            rsi_long_max=rsi_long_max,
+                            rsi_short_min=rsi_short_min,
                         )
                         engine = BacktestEngine(
                             strategy=TrendFollowingStrategy(strategy, timeframe=self.timeframe),
@@ -136,6 +173,8 @@ class ParameterOptimizer:
                             reward_to_risk=rr,
                             min_trend_strength=trend_strength,
                             adx_min=adx_min,
+                            rsi_long_max=rsi_long_max,
+                            rsi_short_min=rsi_short_min,
                             summary=summary,
                         )
                         candidates.append(candidate)

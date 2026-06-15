@@ -168,6 +168,8 @@ def _strategy_view(strategy: StrategySection) -> dict[str, object]:
         "reward_to_risk": strategy.reward_to_risk,
         "min_trend_strength": strategy.min_trend_strength,
         "adx_min": strategy.adx_min,
+        "rsi_long_max": strategy.rsi_long_max,
+        "rsi_short_min": strategy.rsi_short_min,
     }
 
 

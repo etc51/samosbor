@@ -6,7 +6,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from ..analysis.context import ExternalContextProvider, NeutralContextProvider
-from ..analysis.indicators import annualized_volatility, atr, average_turnover, rolling_high, rolling_low, sma
+from ..analysis.indicators import annualized_volatility, atr, average_turnover, rolling_high, rolling_low, rsi, sma
 from ..config import StrategySection
 from ..domain import Candle, Instrument, Signal, SignalDirection
 
@@ -37,7 +37,7 @@ class TrendFollowingStrategy:
         self.context_provider = context_provider or NeutralContextProvider()
         self.style = config.style.strip().lower()
         self._prepared_ta: dict[str, dict[str, object]] = {}
-        if self.style not in {"sma_breakout", "ema_adx_macd"}:
+        if self.style not in {"sma_breakout", "ema_adx_macd", "rsi_mean_reversion"}:
             raise ValueError(f"Unsupported strategy style: {config.style}")
         self.schedule_timezone = ZoneInfo(config.schedule_timezone)
         self.allowed_symbols = {
@@ -160,12 +160,52 @@ class TrendFollowingStrategy:
 
         last = candles[-1]
         trend_strength = abs(fast - slow) / slow
-        if trend_strength < self.config.min_trend_strength:
-            return None
-
         context_score = self.context_provider.score(instrument, candles)
         breakout_long = last.close >= breakout_high if self.config.require_breakout else True
         breakout_short = last.close <= breakout_low if self.config.require_breakout else True
+
+        if self.style == "rsi_mean_reversion":
+            mean_price = sma(closes, self.config.slow_window)
+            rsi_value = rsi(closes, self.config.rsi_window)
+            if mean_price is None or mean_price <= 0 or rsi_value is None:
+                return None
+            deviation_strength = abs(last.close - mean_price) / mean_price
+            if deviation_strength < self.config.min_trend_strength:
+                return None
+            if last.close < mean_price and rsi_value <= self.config.rsi_short_min:
+                return self._build_signal(
+                    instrument=instrument,
+                    direction=SignalDirection.LONG,
+                    last=last,
+                    atr_value=atr_value,
+                    context_score=context_score,
+                    trend_strength=deviation_strength,
+                    turnover=turnover,
+                    volatility=volatility,
+                    extra_reason=(
+                        f"mean-reversion long mean={mean_price:.2f} close={last.close:.2f} "
+                        f"rsi={rsi_value:.2f} deviation={deviation_strength:.4f}"
+                    ),
+                )
+            if last.close > mean_price and self.config.allow_shorts and rsi_value >= self.config.rsi_long_max:
+                return self._build_signal(
+                    instrument=instrument,
+                    direction=SignalDirection.SHORT,
+                    last=last,
+                    atr_value=atr_value,
+                    context_score=context_score,
+                    trend_strength=deviation_strength,
+                    turnover=turnover,
+                    volatility=volatility,
+                    extra_reason=(
+                        f"mean-reversion short mean={mean_price:.2f} close={last.close:.2f} "
+                        f"rsi={rsi_value:.2f} deviation={deviation_strength:.4f}"
+                    ),
+                )
+            return None
+
+        if trend_strength < self.config.min_trend_strength:
+            return None
 
         if self.style == "ema_adx_macd":
             ta_features = self._resolved_ta_features(instrument, candles)

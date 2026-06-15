@@ -18,6 +18,8 @@ _STRATEGY_OVERRIDE_ORDER = [
     "min_signal_strength",
     "min_trend_strength",
     "adx_min",
+    "rsi_long_max",
+    "rsi_short_min",
     "allowed_entry_hours",
     "allowed_symbols",
     "blocked_symbols",
@@ -46,6 +48,8 @@ def base_strategy_values(config: AppConfig) -> dict[str, object]:
         "min_signal_strength": config.strategy.min_signal_strength,
         "min_trend_strength": config.strategy.min_trend_strength,
         "adx_min": config.strategy.adx_min,
+        "rsi_long_max": config.strategy.rsi_long_max,
+        "rsi_short_min": config.strategy.rsi_short_min,
         "allowed_entry_hours": list(config.strategy.allowed_entry_hours),
         "allowed_symbols": list(config.strategy.allowed_symbols),
         "blocked_symbols": list(config.strategy.blocked_symbols),
@@ -325,7 +329,16 @@ def _strategy_current_values(payload: dict[str, object]) -> dict[str, object]:
     source = payload.get("current_strategy", {})
     return {
         key: source[key]
-        for key in ("style", "fast_window", "slow_window", "require_breakout", "min_trend_strength", "adx_min")
+        for key in (
+            "style",
+            "fast_window",
+            "slow_window",
+            "require_breakout",
+            "min_trend_strength",
+            "adx_min",
+            "rsi_long_max",
+            "rsi_short_min",
+        )
         if key in source
     }
 
@@ -334,7 +347,16 @@ def _strategy_candidate_values(payload: dict[str, object]) -> dict[str, object]:
     source = payload.get("candidate_strategy", {})
     return {
         key: source[key]
-        for key in ("style", "fast_window", "slow_window", "require_breakout", "min_trend_strength", "adx_min")
+        for key in (
+            "style",
+            "fast_window",
+            "slow_window",
+            "require_breakout",
+            "min_trend_strength",
+            "adx_min",
+            "rsi_long_max",
+            "rsi_short_min",
+        )
         if key in source
     }
 
@@ -421,7 +443,16 @@ def _strategy_values(payload: dict[str, object]) -> dict[str, object]:
     source = payload.get("candidate_strategy", {}) if payload.get("changed") else payload.get("current_strategy", {})
     return {
         key: source[key]
-        for key in ("style", "fast_window", "slow_window", "require_breakout", "min_trend_strength", "adx_min")
+        for key in (
+            "style",
+            "fast_window",
+            "slow_window",
+            "require_breakout",
+            "min_trend_strength",
+            "adx_min",
+            "rsi_long_max",
+            "rsi_short_min",
+        )
         if key in source
     }
 

@@ -149,6 +149,61 @@ class StrategyTuningTest(unittest.TestCase):
         self.assertFalse(payload["changed"])
         self.assertEqual(payload["reason"], "candidate failed one or more safety guardrails")
 
+    def test_strategy_tuning_can_apply_style_switch_with_rsi_thresholds(self):
+        current = StrategySection(
+            style="ema_adx_macd",
+            fast_window=10,
+            slow_window=40,
+            require_breakout=False,
+            min_trend_strength=0.002,
+            adx_min=20.0,
+            rsi_long_max=75.0,
+            rsi_short_min=25.0,
+        )
+        candidate = StrategySection(
+            style="rsi_mean_reversion",
+            fast_window=12,
+            slow_window=36,
+            require_breakout=False,
+            min_trend_strength=0.003,
+            adx_min=20.0,
+            rsi_long_max=68.0,
+            rsi_short_min=32.0,
+        )
+        payload = build_strategy_tuning_payload(
+            current_strategy=current,
+            candidate_strategy=candidate,
+            baseline_latest_test_summary={
+                "total_return_pct": 0.4,
+                "normalized_monthly_return_pct": 0.4,
+                "max_drawdown_pct": 1.5,
+                "sharpe_ratio": 0.3,
+            },
+            candidate_latest_test_summary={
+                "total_return_pct": 1.0,
+                "normalized_monthly_return_pct": 1.0,
+                "max_drawdown_pct": 1.7,
+                "sharpe_ratio": 0.8,
+            },
+            walk_forward_summary={
+                "average_test_normalized_monthly_return_pct": 0.7,
+                "probability_positive_pct": 66.7,
+            },
+            walk_forward_config={
+                "train_months": 3,
+                "test_months": 1,
+                "step_months": 1,
+            },
+            backtest=BacktestSection(initial_cash=300_000),
+            research=ResearchSection(target_daily_profit_rub=3_000.0),
+            research_window={"available_months": 4, "usable": True},
+        )
+
+        self.assertTrue(payload["changed"])
+        self.assertEqual(payload["patch_values"]["style"], "rsi_mean_reversion")
+        self.assertEqual(payload["patch_values"]["rsi_long_max"], 68.0)
+        self.assertEqual(payload["patch_values"]["rsi_short_min"], 32.0)
+
 
 if __name__ == "__main__":
     unittest.main()

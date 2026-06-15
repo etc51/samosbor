@@ -127,6 +127,8 @@ class ResearchSection:
     reward_to_risk_values: list[float] = field(default_factory=lambda: [1.5, 2.0, 2.5])
     trend_strength_values: list[float] = field(default_factory=lambda: [0.004, 0.006])
     adx_min_values: list[float] = field(default_factory=lambda: [20.0])
+    rsi_long_max_values: list[float] = field(default_factory=lambda: [70.0, 75.0])
+    rsi_short_min_values: list[float] = field(default_factory=lambda: [25.0, 30.0])
     subset_min_size: int = 1
     subset_max_size: int = 3
     top_n: int = 10

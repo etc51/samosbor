@@ -83,7 +83,7 @@ output_dir = "runs"
 write_csv = true
 
 [research]
-strategy_styles = ["ema_adx_macd"]
+strategy_styles = ["ema_adx_macd", "rsi_mean_reversion"]
 fast_windows = [10]
 slow_windows = [30, 50]
 require_breakout_values = [false, true]
@@ -91,6 +91,8 @@ atr_stop_multipliers = [1.25, 1.5]
 reward_to_risk_values = [1.5, 2.0]
 trend_strength_values = [0.002]
 adx_min_values = [15.0, 20.0]
+rsi_long_max_values = [65.0, 70.0, 75.0]
+rsi_short_min_values = [25.0, 30.0, 35.0]
 subset_min_size = 1
 subset_max_size = 2
 top_n = 8
