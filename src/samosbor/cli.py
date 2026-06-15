@@ -58,6 +58,28 @@ def build_parser() -> argparse.ArgumentParser:
         default=2,
         help="Maximum number of negative hours to remove in one recommendation pass",
     )
+    tune_strategy_parser = subparsers.add_parser(
+        "tune-strategy",
+        help="Recommend safer strategy parameters from recent walk-forward results",
+    )
+    tune_strategy_parser.add_argument(
+        "--min-monthly-improvement-pct",
+        type=float,
+        default=0.05,
+        help="Minimum latest OOS monthly improvement required before suggesting a patch",
+    )
+    tune_strategy_parser.add_argument(
+        "--max-extra-drawdown-pct",
+        type=float,
+        default=1.0,
+        help="Maximum tolerated increase in latest OOS drawdown versus the current strategy",
+    )
+    tune_strategy_parser.add_argument(
+        "--min-positive-fold-probability-pct",
+        type=float,
+        default=55.0,
+        help="Minimum walk-forward positive-fold probability required before suggesting a patch",
+    )
 
     sandbox_parser = subparsers.add_parser("sandbox-init", help="Create/fund a sandbox account")
     sandbox_parser.add_argument("--fund-rub", type=float, default=1_000_000)
@@ -114,6 +136,19 @@ def main(argv: list[str] | None = None) -> int:
                     min_trades_per_hour=args.min_trades_per_hour,
                     max_hours_to_add=args.max_hours_to_add,
                     max_hours_to_remove=args.max_hours_to_remove,
+                ),
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "tune-strategy":
+        print(
+            json.dumps(
+                orchestrator.tune_strategy(
+                    min_monthly_improvement_pct=args.min_monthly_improvement_pct,
+                    max_extra_drawdown_pct=args.max_extra_drawdown_pct,
+                    min_positive_fold_probability_pct=args.min_positive_fold_probability_pct,
                 ),
                 ensure_ascii=False,
                 indent=2,

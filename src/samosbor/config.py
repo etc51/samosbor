@@ -129,6 +129,7 @@ class ResearchSection:
     monte_carlo_iterations: int = 1000
     monte_carlo_horizon_months: int = 12
     target_monthly_return_pct: float = 5.0
+    target_monthly_profit_rub: float = 0.0
     random_seed: int = 42
 
 

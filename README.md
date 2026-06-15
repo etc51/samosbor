@@ -89,6 +89,12 @@ SSL_TBANK_VERIFY=True
 .\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-entry-hours --days 45 --min-trades-per-hour 3
 ```
 
+Постройте безопасную рекомендацию по параметрам входа/выхода из walk-forward:
+
+```powershell
+.\.venv\Scripts\python -m samosbor.cli --config configs/server_tbank_cnyrubf_premium.toml tune-strategy
+```
+
 ## Server Runtime
 
 Для 24/7 серверного paper-режима подготовлены:
@@ -108,8 +114,14 @@ SSL_TBANK_VERIFY=True
 - `samosbor-updater.timer` проверяет GitHub каждые `15` минут
 - при новом коммите делает `git pull --ff-only`, обновляет окружение и прогоняет unit tests
 - для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
-- `samosbor-daily-review.timer` после торговой сессии строит daily report и отдельный candidate patch по `allowed_entry_hours`
-- daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports` и `runs/autotune/entry-schedule`
+- `samosbor-daily-review.timer` после торговой сессии строит daily report, candidate patch по `allowed_entry_hours` и отдельный candidate patch по параметрам стратегии
+- daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule` и `runs/autotune/strategy`
+
+Активная целевая функция autotune:
+
+- рабочий target теперь привязан к прибыли `5000-10000 RUB/мес`
+- в активных server/default research-конфигах используется midpoint `7500 RUB/мес`
+- при стартовом капитале `1 000 000 RUB` это соответствует `0.75%` среднего месячного дохода
 
 ## Research На Данных С D:
 
@@ -151,6 +163,8 @@ SSL_TBANK_VERIFY=True
 - агрегирует 1-минутные свечи в `hour/day/...`
 
 ## Последний Research-Результат
+
+Ниже в этом разделе часть исторических Monte Carlo и walk-forward цифр относится к старому research-target `5%/мес`. Это архивные результаты прошлых прогонов. Активный autotune-контур проекта теперь ориентируется на `7500 RUB/мес`, а не на `5%`.
 
 На локальном архиве с `D:` baseline-портфель `GAZPF + IMOEXF + USDRUBF` дал
 отрицательный результат, но оптимизация нашла более устойчивый кандидат:
@@ -202,7 +216,7 @@ Walk-forward для [configs/local_pack_cnyrubf_ta_walk_forward.toml](/D:/projec
   [тарифы инвестора](https://www.tbank.ru/invest/help/brokerage/account/get-bs/tariff/)
   и [маржинальная торговля](https://www.tbank.ru/invest/help/brokerage/account/margin/advantages/)
 
-Итог текущего этапа: исследовательский контур стал быстрее и честнее, потому что теперь включает walk-forward. Цель `5%` в месяц все еще не достигнута на устойчивой основе, но мы уже видим, какие профили переживают OOS-проверку лучше, а какие просто выглядят красиво на общем backtest.
+Итог текущего этапа: исследовательский контур стал быстрее и честнее, потому что теперь включает walk-forward и безопасный autotune candidate flow. Старую цель `5%` в месяц система устойчиво не подтверждала; текущий активный target для runtime и autotune смещён к более реалистичному диапазону `5000-10000 RUB/мес`.
 
 ## Безопасность
 

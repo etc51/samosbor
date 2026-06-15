@@ -76,4 +76,5 @@ min_trades = 6
 monte_carlo_iterations = 1000
 monte_carlo_horizon_months = 12
 target_monthly_return_pct = 5.0
+target_monthly_profit_rub = 7500.0
 random_seed = 42

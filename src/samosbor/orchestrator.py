@@ -8,6 +8,11 @@ from .autonomy.entry_schedule import (
     build_entry_schedule_tuning_payload,
     write_entry_schedule_tuning,
 )
+from .autonomy.strategy_tuning import (
+    adapt_strategy_tuning_research,
+    build_strategy_tuning_payload,
+    write_strategy_tuning,
+)
 from .config import AppConfig
 from .config import StrategySection
 from .data.csv_provider import CSVMarketDataProvider
@@ -26,7 +31,15 @@ from .reporting.research_writer import (
 from .reporting.writer import write_backtest_report, write_json_payload, write_portfolio_snapshot
 from .research.monte_carlo import MonteCarloSimulator
 from .research.optimizer import ParameterOptimizer
-from .research.walk_forward import WalkForwardValidator
+from .research.targets import effective_target_monthly_profit_rub, effective_target_monthly_return_pct
+from .research.walk_forward import (
+    WalkForwardValidator,
+    _available_months,
+    _group_candles_by_month,
+    _normalized_monthly_return_pct,
+    _slice_grouped_candles,
+    _trim_backtest_result,
+)
 from .risk.manager import RiskManager
 from .safety import assert_paper_only_mode
 from .strategy.trend_following import TrendFollowingStrategy
@@ -162,11 +175,24 @@ class TradingOrchestrator:
         simulator = MonteCarloSimulator(
             iterations=self.config.research.monte_carlo_iterations,
             horizon_months=self.config.research.monte_carlo_horizon_months,
-            target_monthly_return_pct=self.config.research.target_monthly_return_pct,
+            target_monthly_return_pct=effective_target_monthly_return_pct(
+                self.config.research,
+                self.config.backtest,
+            ),
             seed=self.config.research.random_seed,
         )
         payload = {
             "backtest_summary": summary,
+            "target": {
+                "monthly_profit_rub": round(
+                    effective_target_monthly_profit_rub(self.config.research, self.config.backtest),
+                    2,
+                ),
+                "monthly_return_pct": round(
+                    effective_target_monthly_return_pct(self.config.research, self.config.backtest),
+                    3,
+                ),
+            },
             "monte_carlo": simulator.run(result),
         }
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -195,6 +221,99 @@ class TradingOrchestrator:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "walk-forward" / stamp
         write_walk_forward_report(output_dir, payload)
+        payload["output_dir"] = str(output_dir)
+        return payload
+
+    def tune_strategy(
+        self,
+        *,
+        min_monthly_improvement_pct: float = 0.05,
+        max_extra_drawdown_pct: float = 1.0,
+        min_positive_fold_probability_pct: float = 55.0,
+    ) -> dict[str, object]:
+        assert_paper_only_mode(
+            self.config.execution.mode,
+            allow_live_trading=self.config.execution.allow_live_trading,
+            live_flag=False,
+        )
+        _, instruments, candles_by_symbol, instruments_by_symbol = self._load_market_bundle()
+        grouped = _group_candles_by_month(candles_by_symbol)
+        available_months = _available_months(grouped)
+        tuned_research, research_window = adapt_strategy_tuning_research(
+            self.config.research,
+            available_months=len(available_months),
+            fixed_subset_size=len(instruments),
+        )
+        if tuned_research is None:
+            payload = {
+                "target": {
+                    "monthly_profit_rub": round(
+                        effective_target_monthly_profit_rub(self.config.research, self.config.backtest),
+                        2,
+                    ),
+                    "monthly_return_pct": round(
+                        effective_target_monthly_return_pct(self.config.research, self.config.backtest),
+                        3,
+                    ),
+                },
+                "research_window": research_window,
+                "changed": False,
+                "reason": research_window["reason"],
+            }
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+            output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "strategy" / stamp
+            write_json_payload(output_dir / "strategy_tuning.json", payload)
+            payload["output_dir"] = str(output_dir)
+            return payload
+
+        validator = WalkForwardValidator(
+            base_strategy=self.config.strategy,
+            risk=self.config.risk,
+            backtest=self.config.backtest,
+            research=tuned_research,
+            timeframe=self.config.data.timeframe,
+            slippage_bps=self.config.execution.slippage_bps,
+            commission_bps=self.config.execution.commission_bps,
+        )
+        walk_forward = validator.run(candles_by_symbol, instruments_by_symbol)
+        latest_fold = walk_forward["folds"][-1]
+
+        optimizer = ParameterOptimizer(
+            base_strategy=self.config.strategy,
+            risk=self.config.risk,
+            backtest=self.config.backtest,
+            research=tuned_research,
+            timeframe=self.config.data.timeframe,
+            slippage_bps=self.config.execution.slippage_bps,
+            commission_bps=self.config.execution.commission_bps,
+        )
+        candidate_strategy = optimizer.strategy_from_candidate_payload(latest_fold["best_candidate"])
+        baseline_summary = self._evaluate_strategy_test_window(
+            strategy_config=self.config.strategy,
+            grouped=grouped,
+            instruments_by_symbol=instruments_by_symbol,
+            symbols=latest_fold["best_candidate"]["symbols"],
+            train_months=latest_fold["train_months"],
+            test_months=latest_fold["test_months"],
+        )
+        payload = build_strategy_tuning_payload(
+            current_strategy=self.config.strategy,
+            candidate_strategy=candidate_strategy,
+            baseline_latest_test_summary=baseline_summary,
+            candidate_latest_test_summary=latest_fold["test_summary"],
+            walk_forward_summary=walk_forward["summary"],
+            walk_forward_config=walk_forward["config"],
+            backtest=self.config.backtest,
+            research=tuned_research,
+            research_window=research_window,
+            min_monthly_improvement_pct=min_monthly_improvement_pct,
+            max_extra_drawdown_pct=max_extra_drawdown_pct,
+            min_positive_fold_probability_pct=min_positive_fold_probability_pct,
+        )
+        payload["latest_fold"] = latest_fold
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "strategy" / stamp
+        write_strategy_tuning(output_dir, payload)
         payload["output_dir"] = str(output_dir)
         return payload
 
@@ -377,3 +496,49 @@ class TradingOrchestrator:
         write_json_payload(output_dir / "cycle_events.json", {"events": cycle_events})
         write_portfolio_snapshot(output_dir / "portfolio.json", broker.portfolio)
         return {"summary": summary, "output_dir": str(output_dir)}
+
+    def _evaluate_strategy_test_window(
+        self,
+        *,
+        strategy_config: StrategySection,
+        grouped: dict[str, dict[str, list]],
+        instruments_by_symbol: dict[str, object],
+        symbols: list[str],
+        train_months: list[str],
+        test_months: list[str],
+    ) -> dict[str, float | int]:
+        selected_symbols = [symbol for symbol in symbols if symbol in instruments_by_symbol]
+        combined_months = tuple([*train_months, *test_months])
+        combined_bundle = _slice_grouped_candles(grouped, combined_months)
+        test_bundle = _slice_grouped_candles(grouped, tuple(test_months))
+        selected_candles = {symbol: combined_bundle[symbol] for symbol in selected_symbols}
+        selected_instruments = {
+            symbol: instruments_by_symbol[symbol] for symbol in selected_symbols
+        }
+        test_start_at = min(
+            candle.timestamp
+            for symbol in selected_symbols
+            for candle in test_bundle.get(symbol, [])
+        )
+        engine = BacktestEngine(
+            strategy=TrendFollowingStrategy(strategy_config, timeframe=self.config.data.timeframe),
+            risk_manager=self._risk_manager(),
+            backtest=self.config.backtest,
+            slippage_bps=self.config.execution.slippage_bps,
+            commission_bps=self.config.execution.commission_bps,
+        )
+        combined_result = engine.run_with_instruments(
+            selected_candles,
+            selected_instruments,
+            trade_start_at=test_start_at,
+        )
+        test_result = _trim_backtest_result(combined_result, test_start_at)
+        summary = compute_summary(test_result, timeframe=self.config.data.timeframe)
+        summary["normalized_monthly_return_pct"] = round(
+            _normalized_monthly_return_pct(
+                float(summary["total_return_pct"]),
+                len(test_months),
+            ),
+            3,
+        )
+        return summary

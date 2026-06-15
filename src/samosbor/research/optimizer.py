@@ -8,6 +8,7 @@ from ..config import BacktestSection, ResearchSection, RiskSection, StrategySect
 from ..domain import Candle, Instrument
 from ..reporting.metrics import compute_summary
 from ..risk.manager import RiskManager
+from .targets import effective_target_monthly_return_pct
 from ..strategy.trend_following import TrendFollowingStrategy
 
 
@@ -50,6 +51,7 @@ class ParameterOptimizer:
         self.timeframe = timeframe
         self.slippage_bps = slippage_bps
         self.commission_bps = commission_bps
+        self.target_monthly_return_pct = effective_target_monthly_return_pct(research, backtest)
 
     def strategy_from_candidate_payload(self, payload: dict[str, object]) -> StrategySection:
         return replace(
@@ -154,7 +156,7 @@ class ParameterOptimizer:
         avg_monthly = float(summary["avg_monthly_return_pct"])
         profit_factor = float(summary["profit_factor"])
         trades = int(summary["trades"])
-        target_gap = max(0.0, self.research.target_monthly_return_pct - avg_monthly)
+        target_gap = max(0.0, self.target_monthly_return_pct - avg_monthly)
         trade_penalty = max(0, self.research.min_trades - trades) * 0.6
         return (
             total_return
