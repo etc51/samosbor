@@ -121,7 +121,7 @@ class DashboardTest(unittest.TestCase):
                 },
             )
             self._write_json(
-                runs_dir / "autotune" / "effective-config" / "20260615-093614" / "effective_config.json",
+                runs_dir / "autotune" / "demo" / "effective-config" / "20260615-093614" / "effective_config.json",
                 {
                     "effective_config_path": str(config_dir / "paper.effective.toml"),
                     "applied_strategy_overrides": {
@@ -137,11 +137,11 @@ class DashboardTest(unittest.TestCase):
                             "activation": {"reason": "confirmed"},
                         }
                     ],
-                    "output_dir": str(runs_dir / "autotune" / "effective-config" / "20260615-093614"),
+                    "output_dir": str(runs_dir / "autotune" / "demo" / "effective-config" / "20260615-093614"),
                 },
             )
             self._write_json(
-                runs_dir / "autotune" / "entry-symbols" / "20260615-093603" / "symbol_restrictions.json",
+                runs_dir / "autotune" / "demo" / "entry-symbols" / "20260615-093603" / "symbol_restrictions.json",
                 {
                     "changed": True,
                     "reason": "entry symbol restrictions updated from paper results",
@@ -163,7 +163,7 @@ class DashboardTest(unittest.TestCase):
                 },
             )
             self._write_json(
-                runs_dir / "autotune" / "entry-schedule" / "20260615-091418" / "schedule_tuning.json",
+                runs_dir / "autotune" / "demo" / "entry-schedule" / "20260615-091418" / "schedule_tuning.json",
                 {
                     "changed": True,
                     "reason": "hours updated from paper results",
@@ -172,7 +172,7 @@ class DashboardTest(unittest.TestCase):
                 },
             )
             self._write_json(
-                runs_dir / "autotune" / "entry-quality" / "20260615-081025" / "entry_quality_tuning.json",
+                runs_dir / "autotune" / "demo" / "entry-quality" / "20260615-081025" / "entry_quality_tuning.json",
                 {
                     "changed": False,
                     "reason": "no change",
@@ -181,11 +181,11 @@ class DashboardTest(unittest.TestCase):
                 },
             )
             self._write_json(
-                runs_dir / "autotune" / "nightly-autonomy" / "20260615-081500" / "nightly_autonomy.json",
+                runs_dir / "autotune" / "demo" / "nightly-autonomy" / "20260615-081500" / "nightly_autonomy.json",
                 {
                     "timestamp": "2026-06-15T08:15:00+00:00",
                     "steps_executed": ["paper-report", "bootstrap-entry-feedback", "tune-entry-symbols"],
-                    "output_dir": str(runs_dir / "autotune" / "nightly-autonomy" / "20260615-081500"),
+                    "output_dir": str(runs_dir / "autotune" / "demo" / "nightly-autonomy" / "20260615-081500"),
                 },
             )
 
@@ -266,7 +266,7 @@ class DashboardTest(unittest.TestCase):
             )
 
             self._write_json(
-                runs_dir / "autotune" / "entry-symbols" / "20260615-090000" / "symbol_restrictions.json",
+                runs_dir / "autotune" / "demo" / "entry-symbols" / "20260615-090000" / "symbol_restrictions.json",
                 {
                     "changed": True,
                     "reason": "stock restriction",
@@ -288,7 +288,7 @@ class DashboardTest(unittest.TestCase):
                 },
             )
             self._write_json(
-                runs_dir / "autotune" / "entry-symbols" / "20260615-100000" / "symbol_restrictions.json",
+                runs_dir / "autotune" / "demo" / "entry-symbols" / "20260615-100000" / "symbol_restrictions.json",
                 {
                     "changed": True,
                     "reason": "stale futures restriction",
@@ -310,7 +310,7 @@ class DashboardTest(unittest.TestCase):
                 },
             )
             self._write_json(
-                runs_dir / "autotune" / "entry-schedule" / "20260615-090000" / "schedule_tuning.json",
+                runs_dir / "autotune" / "demo" / "entry-schedule" / "20260615-090000" / "schedule_tuning.json",
                 {
                     "changed": True,
                     "reason": "stock schedule",
@@ -319,7 +319,7 @@ class DashboardTest(unittest.TestCase):
                 },
             )
             self._write_json(
-                runs_dir / "autotune" / "entry-schedule" / "20260615-100000" / "schedule_tuning.json",
+                runs_dir / "autotune" / "demo" / "entry-schedule" / "20260615-100000" / "schedule_tuning.json",
                 {
                     "changed": True,
                     "reason": "stale futures schedule",
@@ -406,7 +406,7 @@ class DashboardTest(unittest.TestCase):
             )
 
             self._write_json(
-                runs_dir / "autotune" / "entry-symbols" / "20260615-100000" / "symbol_restrictions.json",
+                runs_dir / "autotune" / "demo" / "entry-symbols" / "20260615-100000" / "symbol_restrictions.json",
                 {
                     "changed": True,
                     "reason": "stale futures restriction",
@@ -428,7 +428,7 @@ class DashboardTest(unittest.TestCase):
                 },
             )
             self._write_json(
-                runs_dir / "autotune" / "entry-schedule" / "20260615-100000" / "schedule_tuning.json",
+                runs_dir / "autotune" / "demo" / "entry-schedule" / "20260615-100000" / "schedule_tuning.json",
                 {
                     "changed": True,
                     "reason": "stale futures schedule",

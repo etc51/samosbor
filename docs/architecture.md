@@ -220,6 +220,7 @@ CLI-сценарии:
 - отдельный daily-review timer теперь запускает единый `nightly-autonomy` pipeline
 - этот pipeline явно включает analyze (`paper-report`), restrictions (`tune-entry-hours`, `tune-entry-quality`, signal-feedback bootstrap), optimizer (`optimize`), research (`walk-forward`, `monte-carlo`), active-universe selection (`tune-universe`), strategy/exit tuning и финальную пересборку effective config
 - отдельная команда `refresh-effective-config` собирает производный runtime TOML из последних autotune-артефактов, не трогая базовый config
+- autotune/effective-config артефакты раскладываются в profile-scoped subtree, вычисляемое из `execution.state_path`, чтобы разные paper-runtime не смешивали strategy/exit/restriction evidence между собой
 - для новых candidate changes effective-config дополнительно требует повторного подтверждения в нескольких подряд tuning artifacts, чтобы не дергать runtime по единичному noisy сигналу
 - тот же runtime теперь сохраняет `signal_strength` в paper state и closed trades, чтобы feedback loop мог работать по фактическим входам
 - paper-cycle также ведёт отдельный shadow signal feedback journal, где кандидатные сигналы получают outcome по последующим свечам даже если реальная позиция не открывалась

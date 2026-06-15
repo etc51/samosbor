@@ -169,6 +169,22 @@ class AppConfig:
             return path
         return self.root_dir / path
 
+    def runtime_profile_name(self) -> str:
+        stem = Path(self.execution.state_path).stem.strip()
+        if not stem:
+            return "paper"
+        if stem.endswith("_state"):
+            stem = stem[: -len("_state")]
+        elif stem.endswith("-state"):
+            stem = stem[: -len("-state")]
+        return stem or "paper"
+
+    def autotune_dir(self) -> Path:
+        return self.resolve_path(self.configured_autotune_dir())
+
+    def configured_autotune_dir(self) -> str:
+        return str(Path(self.reporting.output_dir) / "autotune" / self.runtime_profile_name())
+
 
 def _parse_instrument(payload: dict[str, Any]) -> Instrument:
     return Instrument(

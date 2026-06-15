@@ -94,6 +94,9 @@ class TradingOrchestrator:
     def __init__(self, config: AppConfig):
         self.config = config
 
+    def _autotune_dir(self) -> Path:
+        return self.config.autotune_dir()
+
     def _data_provider(self):
         if self.config.data.source == "csv":
             return CSVMarketDataProvider(self.config.resolve_path(self.config.data.csv_path))
@@ -319,7 +322,7 @@ class TradingOrchestrator:
                 "reason": research_window["reason"],
             }
             stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-            output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "strategy" / stamp
+            output_dir = self._autotune_dir() / "strategy" / stamp
             write_json_payload(output_dir / "strategy_tuning.json", payload)
             payload["output_dir"] = str(output_dir)
             return payload
@@ -370,7 +373,7 @@ class TradingOrchestrator:
         )
         payload["latest_fold"] = latest_fold
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "strategy" / stamp
+        output_dir = self._autotune_dir() / "strategy" / stamp
         write_strategy_tuning(output_dir, payload)
         payload["output_dir"] = str(output_dir)
         return payload
@@ -403,7 +406,7 @@ class TradingOrchestrator:
                 "reason": research_window["reason"],
             }
             stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-            output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "exits" / stamp
+            output_dir = self._autotune_dir() / "exits" / stamp
             write_json_payload(output_dir / "exit_tuning.json", payload)
             payload["output_dir"] = str(output_dir)
             return payload
@@ -465,7 +468,7 @@ class TradingOrchestrator:
         )
         payload["latest_fold"] = latest_fold
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "exits" / stamp
+        output_dir = self._autotune_dir() / "exits" / stamp
         write_exit_tuning(output_dir, payload)
         payload["output_dir"] = str(output_dir)
         return payload
@@ -521,7 +524,7 @@ class TradingOrchestrator:
             max_hours_to_remove=max_hours_to_remove,
         )
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "entry-schedule" / stamp
+        output_dir = self._autotune_dir() / "entry-schedule" / stamp
         write_entry_schedule_tuning(output_dir, payload)
         payload["output_dir"] = str(output_dir)
         return payload
@@ -553,7 +556,7 @@ class TradingOrchestrator:
             bucket_step=bucket_step,
         )
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "entry-quality" / stamp
+        output_dir = self._autotune_dir() / "entry-quality" / stamp
         write_entry_quality_tuning(output_dir, payload)
         payload["output_dir"] = str(output_dir)
         return payload
@@ -599,7 +602,7 @@ class TradingOrchestrator:
             max_total_blocked_short_symbols=max_total_blocked_short_symbols,
         )
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "entry-symbols" / stamp
+        output_dir = self._autotune_dir() / "entry-symbols" / stamp
         write_entry_symbol_tuning(output_dir, payload)
         payload["output_dir"] = str(output_dir)
         return payload
@@ -640,7 +643,7 @@ class TradingOrchestrator:
             require_optimizer_overlap=require_optimizer_overlap,
         )
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "universe-selection" / stamp
+        output_dir = self._autotune_dir() / "universe-selection" / stamp
         write_universe_selection_tuning(output_dir, payload)
         payload["output_dir"] = str(output_dir)
         return payload
@@ -694,7 +697,7 @@ class TradingOrchestrator:
 
         save_signal_feedback(feedback_path, payload)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "entry-feedback-bootstrap" / stamp
+        output_dir = self._autotune_dir() / "entry-feedback-bootstrap" / stamp
         result = {
             "feedback_path": str(feedback_path),
             "replace_existing": replace_existing,
@@ -721,7 +724,7 @@ class TradingOrchestrator:
         )
         source_path = Path(source_config_path).resolve()
         target_path = Path(output_path).resolve() if output_path else default_effective_config_path(source_path)
-        autotune_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune"
+        autotune_dir = self._autotune_dir()
         sources = align_effective_config_sources(
             self.config,
             summarize_effective_config_sources(autotune_dir),
@@ -753,7 +756,7 @@ class TradingOrchestrator:
             strategy_overrides=overrides,
         )
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "effective-config" / stamp
+        output_dir = self._autotune_dir() / "effective-config" / stamp
         result = {
             "source_config_path": str(source_path),
             "effective_config_path": str(target_path),
@@ -814,7 +817,7 @@ class TradingOrchestrator:
         )
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        output_dir = self.config.resolve_path(self.config.reporting.output_dir) / "autotune" / "nightly-autonomy" / stamp
+        output_dir = self._autotune_dir() / "nightly-autonomy" / stamp
         result = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "active_config_path": str(active_config),

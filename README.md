@@ -176,6 +176,7 @@ SSL_TBANK_VERIFY=True
 - daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/entry-symbols`, `runs/autotune/entry-quality`, `runs/autotune/strategy` и `runs/autotune/exits`
 - тот же nightly cycle теперь дополнительно пишет агрегированный summary в `runs/autotune/nightly-autonomy`
 - `paper-cycle` теперь работает через производный `configs/server_tbank_stocks_intraday_300k_focused.effective.toml`, который каждый раз пересобирается именно из базового server TOML плюс последних autotune-артефактов и сохраняет `local-paper` / `allow_live_trading = false`
+- autotune-артефакты теперь дополнительно изолируются по runtime-профилю на основе `state_path`, чтобы stock runtime не подхватывал stale candidates и ограничения от других paper-конфигов
 
 Активная целевая функция autotune:
 

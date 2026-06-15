@@ -69,7 +69,7 @@ def build_effective_strategy_overrides(
 ) -> dict[str, object]:
     summaries = source_summaries
     if summaries is None:
-        autotune_dir = config.resolve_path(config.reporting.output_dir) / "autotune"
+        autotune_dir = config.autotune_dir()
         summaries = summarize_effective_config_sources(autotune_dir)
     summaries = align_effective_config_sources(config, summaries)
     overrides: dict[str, object] = {}

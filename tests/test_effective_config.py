@@ -55,7 +55,7 @@ class EffectiveConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             config_dir = root / "configs"
-            autotune_dir = root / "runs" / "autotune"
+            autotune_dir = root / "runs" / "autotune" / "paper"
             config_dir.mkdir(parents=True)
 
             base_config = config_dir / "paper.toml"
@@ -157,7 +157,7 @@ class EffectiveConfigTest(unittest.TestCase):
             )
 
             config = load_config(base_config)
-            sources = summarize_effective_config_sources(root / "runs" / "autotune")
+            sources = summarize_effective_config_sources(autotune_dir)
             overrides = build_effective_strategy_overrides(config)
             output_config = config_dir / "paper.effective.toml"
             write_effective_config(base_config, output_config, strategy_overrides=overrides)
@@ -185,7 +185,7 @@ class EffectiveConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             config_dir = root / "configs"
-            autotune_dir = root / "runs" / "autotune"
+            autotune_dir = root / "runs" / "autotune" / "paper"
             config_dir.mkdir(parents=True)
 
             base_config = config_dir / "paper.toml"
@@ -288,7 +288,7 @@ class EffectiveConfigTest(unittest.TestCase):
             )
 
             config = load_config(base_config)
-            sources = summarize_effective_config_sources(root / "runs" / "autotune")
+            sources = summarize_effective_config_sources(autotune_dir)
             overrides = build_effective_strategy_overrides(config)
             output_config = config_dir / "paper.effective.toml"
             write_effective_config(base_config, output_config, strategy_overrides=overrides)
@@ -319,7 +319,7 @@ class EffectiveConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             config_dir = root / "configs"
-            autotune_dir = root / "runs" / "autotune"
+            autotune_dir = root / "runs" / "autotune" / "paper"
             config_dir.mkdir(parents=True)
 
             base_config = config_dir / "paper.toml"
@@ -387,7 +387,7 @@ class EffectiveConfigTest(unittest.TestCase):
                 )
 
             config = load_config(base_config)
-            sources = summarize_effective_config_sources(root / "runs" / "autotune")
+            sources = summarize_effective_config_sources(autotune_dir)
             overrides = build_effective_strategy_overrides(config, source_summaries=sources)
             output_config = config_dir / "paper.effective.toml"
             write_effective_config(base_config, output_config, strategy_overrides=overrides)
@@ -402,7 +402,7 @@ class EffectiveConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             config_dir = root / "configs"
-            autotune_dir = root / "runs" / "autotune"
+            autotune_dir = root / "runs" / "autotune" / "paper"
             config_dir.mkdir(parents=True)
 
             base_config = config_dir / "paper.toml"
@@ -504,7 +504,7 @@ class EffectiveConfigTest(unittest.TestCase):
             )
 
             config = load_config(base_config)
-            sources = summarize_effective_config_sources(root / "runs" / "autotune")
+            sources = summarize_effective_config_sources(autotune_dir)
             overrides = build_effective_strategy_overrides(config, source_summaries=sources)
             output_config = config_dir / "paper.effective.toml"
             write_effective_config(base_config, output_config, strategy_overrides=overrides)
@@ -634,7 +634,7 @@ class EffectiveConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             config_dir = root / "configs"
-            autotune_dir = root / "runs" / "autotune"
+            autotune_dir = root / "runs" / "autotune" / "paper"
             config_dir.mkdir(parents=True)
 
             base_config = config_dir / "paper.toml"
@@ -697,7 +697,7 @@ class EffectiveConfigTest(unittest.TestCase):
                 )
 
             config = load_config(base_config)
-            sources = summarize_effective_config_sources(root / "runs" / "autotune")
+            sources = summarize_effective_config_sources(autotune_dir)
             overrides = build_effective_strategy_overrides(config, source_summaries=sources)
             output_config = config_dir / "paper.effective.toml"
             write_effective_config(base_config, output_config, strategy_overrides=overrides)
@@ -720,7 +720,7 @@ class EffectiveConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             config_dir = root / "configs"
-            autotune_dir = root / "runs" / "autotune"
+            autotune_dir = root / "runs" / "autotune" / "paper"
             config_dir.mkdir(parents=True)
 
             base_config = config_dir / "paper.toml"
@@ -784,7 +784,7 @@ class EffectiveConfigTest(unittest.TestCase):
                 )
 
             config = load_config(base_config)
-            sources = summarize_effective_config_sources(root / "runs" / "autotune")
+            sources = summarize_effective_config_sources(autotune_dir)
             overrides = build_effective_strategy_overrides(config, source_summaries=sources)
             output_config = config_dir / "paper.effective.toml"
             write_effective_config(base_config, output_config, strategy_overrides=overrides)
@@ -801,7 +801,7 @@ class EffectiveConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             config_dir = root / "configs"
-            autotune_dir = root / "runs" / "autotune"
+            autotune_dir = root / "runs" / "autotune" / "paper"
             config_dir.mkdir(parents=True)
 
             base_config = config_dir / "paper.toml"
@@ -878,7 +878,7 @@ class EffectiveConfigTest(unittest.TestCase):
                 )
 
             config = load_config(base_config)
-            raw_sources = summarize_effective_config_sources(root / "runs" / "autotune")
+            raw_sources = summarize_effective_config_sources(autotune_dir)
             aligned = align_effective_config_sources(config, raw_sources)
             overrides = build_effective_strategy_overrides(config, source_summaries=raw_sources)
 

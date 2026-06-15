@@ -20,6 +20,7 @@ def build_dashboard_payload(
 ) -> dict[str, object]:
     config = load_config(config_path)
     reporting_dir = config.resolve_path(config.reporting.output_dir)
+    autotune_dir = config.autotune_dir()
     state_path = config.resolve_path(config.execution.state_path)
     feedback_path = signal_feedback_path(state_path)
     runtime_symbols = {
@@ -29,33 +30,33 @@ def build_dashboard_payload(
 
     paper_cycle = _read_latest_json(reporting_dir / "paper", "cycle_summary.json")
     paper_report = _read_latest_json(reporting_dir / "paper-reports", "summary.json")
-    nightly = _read_latest_json(reporting_dir / "autotune" / "nightly-autonomy", "nightly_autonomy.json")
+    nightly = _read_latest_json(autotune_dir / "nightly-autonomy", "nightly_autonomy.json")
     effective_runtime = _read_latest_json(
-        reporting_dir / "autotune" / "effective-config",
+        autotune_dir / "effective-config",
         "effective_config.json",
     )
     entry_symbols = _read_latest_compatible_json(
-        reporting_dir / "autotune" / "entry-symbols",
+        autotune_dir / "entry-symbols",
         "symbol_restrictions.json",
         lambda payload: _entry_symbols_payload_matches_runtime(payload, runtime_symbols),
     )
     if not entry_symbols:
         entry_symbols = _sanitize_entry_symbols_payload(
-            _read_latest_json(reporting_dir / "autotune" / "entry-symbols", "symbol_restrictions.json"),
+            _read_latest_json(autotune_dir / "entry-symbols", "symbol_restrictions.json"),
             runtime_symbols,
         )
     entry_schedule = _read_latest_compatible_json(
-        reporting_dir / "autotune" / "entry-schedule",
+        autotune_dir / "entry-schedule",
         "schedule_tuning.json",
         lambda payload: _entry_schedule_payload_matches_runtime(payload, runtime_hours),
     )
     if not entry_schedule:
         entry_schedule = _sanitize_entry_schedule_payload(
-            _read_latest_json(reporting_dir / "autotune" / "entry-schedule", "schedule_tuning.json"),
+            _read_latest_json(autotune_dir / "entry-schedule", "schedule_tuning.json"),
             runtime_hours,
         )
     entry_quality = _read_latest_json(
-        reporting_dir / "autotune" / "entry-quality",
+        autotune_dir / "entry-quality",
         "entry_quality_tuning.json",
     )
     state_payload = _read_json_file(state_path)
@@ -84,6 +85,7 @@ def build_dashboard_payload(
             "state_path": str(state_path),
             "feedback_path": str(feedback_path),
             "reporting_dir": str(reporting_dir),
+            "autotune_dir": str(autotune_dir),
         },
         "runtime": {
             "portfolio_state": {
