@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from datetime import datetime, timezone
 
-from samosbor.config import RiskSection
+from samosbor.config import RiskSection, StrategySection
 from samosbor.domain import (
     Instrument,
     InstrumentType,
@@ -140,6 +140,56 @@ class RiskManagerDiversificationTest(unittest.TestCase):
         self.assertTrue(decision.approved)
         self.assertEqual(decision.quantity_lots, 90)
         self.assertEqual(decision.estimated_notional_rub, 90_000.0)
+
+    def test_trailing_stop_moves_to_breakeven_after_half_percent_profit(self):
+        manager = RiskManager(RiskSection())
+        now = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        position = Position(
+            instrument=Instrument(symbol="SBER", instrument_type=InstrumentType.STOCK, lot_size=1),
+            direction=SignalDirection.LONG,
+            quantity_lots=10,
+            entry_price=100.0,
+            entry_commission=0.0,
+            margin_requirement=0.0,
+            current_price=100.5,
+            stop_price=95.0,
+            take_profit=110.0,
+            opened_at=now,
+            updated_at=now,
+        )
+
+        candidate = manager.trailing_stop_price(
+            position,
+            100.5,
+            StrategySection(breakeven_trigger_pct=0.5, trailing_profit_lock_ratio=0.5),
+        )
+
+        self.assertEqual(candidate, 100.0)
+
+    def test_trailing_stop_locks_only_excess_profit_above_breakeven_trigger(self):
+        manager = RiskManager(RiskSection())
+        now = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        position = Position(
+            instrument=Instrument(symbol="SBER", instrument_type=InstrumentType.STOCK, lot_size=1),
+            direction=SignalDirection.LONG,
+            quantity_lots=10,
+            entry_price=100.0,
+            entry_commission=0.0,
+            margin_requirement=0.0,
+            current_price=101.0,
+            stop_price=95.0,
+            take_profit=110.0,
+            opened_at=now,
+            updated_at=now,
+        )
+
+        candidate = manager.trailing_stop_price(
+            position,
+            101.0,
+            StrategySection(breakeven_trigger_pct=0.5, trailing_profit_lock_ratio=0.5),
+        )
+
+        self.assertEqual(candidate, 100.25)
 
 
 if __name__ == "__main__":

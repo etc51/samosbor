@@ -47,6 +47,7 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     results: list[dict[str, object]] = []
+    missing_symbols: list[str] = []
 
     for instrument in instruments:
         path = parquet_dir / f"{instrument.symbol}_{config.data.timeframe.lower()}.parquet"
@@ -64,7 +65,7 @@ def main() -> int:
                 from_dt=fetch_from,
             )
         except Exception as exc:
-            if path.exists():
+            if not existing.empty:
                 results.append(
                     {
                         "symbol": instrument.symbol,
@@ -75,7 +76,18 @@ def main() -> int:
                     }
                 )
                 continue
-            raise
+            results.append(
+                {
+                    "symbol": instrument.symbol,
+                    "status": "bootstrap-failed",
+                    "reason": str(exc),
+                    "path": str(path),
+                    "previous_latest": previous_latest.isoformat() if previous_latest else "",
+                    "fetch_from": fetch_from.isoformat(),
+                }
+            )
+            missing_symbols.append(instrument.symbol)
+            continue
 
         fresh = candles_to_frame(fresh_candles)
         merged = merge_candle_frames(existing, fresh)
@@ -99,6 +111,8 @@ def main() -> int:
         "source_config": str(Path(args.config).resolve()),
         "parquet_dir": str(parquet_dir),
         "timeframe": config.data.timeframe,
+        "safe_to_continue": not missing_symbols,
+        "missing_symbols": missing_symbols,
         "results": results,
     }
     (output_dir / "offline_cache_update.json").write_text(
@@ -106,7 +120,7 @@ def main() -> int:
         encoding="utf-8",
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
-    return 0
+    return 1 if missing_symbols else 0
 
 
 if __name__ == "__main__":

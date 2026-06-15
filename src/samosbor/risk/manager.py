@@ -191,13 +191,43 @@ class RiskManager:
         mark_price: float,
         strategy: StrategySection,
     ) -> float | None:
+        breakeven_trigger_pct = max(0.0, strategy.breakeven_trigger_pct)
         trigger_rub = max(0.0, strategy.trailing_profit_trigger_rub)
         lock_ratio = max(0.0, min(1.0, strategy.trailing_profit_lock_ratio))
-        if trigger_rub <= 0 or lock_ratio <= 0:
+        if position.quantity_units <= 0:
             return None
 
         open_profit = position.unrealized_pnl(mark_price)
-        if open_profit < trigger_rub or position.quantity_units <= 0:
+        if breakeven_trigger_pct > 0:
+            trigger_profit_rub = (
+                position.entry_price
+                * position.quantity_units
+                * breakeven_trigger_pct
+                / 100.0
+            )
+            if open_profit < trigger_profit_rub:
+                return None
+
+            trailing_profit_rub = max(0.0, open_profit - trigger_profit_rub)
+            protected_move = (
+                trailing_profit_rub * lock_ratio / position.quantity_units
+                if lock_ratio > 0
+                else 0.0
+            )
+            if position.direction == SignalDirection.LONG:
+                candidate = position.entry_price + protected_move
+                if candidate > position.stop_price:
+                    return candidate
+                return None
+
+            candidate = position.entry_price - protected_move
+            if candidate < position.stop_price:
+                return candidate
+            return None
+
+        if trigger_rub <= 0 or lock_ratio <= 0:
+            return None
+        if open_profit < trigger_rub:
             return None
 
         locked_profit = open_profit * lock_ratio

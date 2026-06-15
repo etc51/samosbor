@@ -12,9 +12,7 @@ AUTONOMY_CONFIG="configs/server_tbank_stocks_intraday_300k_focused.autonomy.toml
 AUTONOMY_PARQUET_DIR="data/server_moex_strategy_lab_data_processed"
 ACTIVE_CONFIG="$EFFECTIVE_CONFIG"
 
-if [[ ! -f "$ROOT_DIR/$ACTIVE_CONFIG" ]]; then
-  python -m samosbor.cli --config "$BASE_CONFIG" refresh-effective-config --output "$EFFECTIVE_CONFIG"
-fi
+python -m samosbor.cli --config "$BASE_CONFIG" refresh-effective-config --output "$EFFECTIVE_CONFIG"
 
 python scripts/server/build-offline-autonomy-config.py \
   --source "$ACTIVE_CONFIG" \
@@ -23,7 +21,6 @@ python scripts/server/build-offline-autonomy-config.py \
 
 python scripts/server/update-offline-parquet-cache.py \
   --config "$ACTIVE_CONFIG" \
-  --parquet-dir "$AUTONOMY_PARQUET_DIR" \
-  || echo "offline parquet cache update failed; continuing with the last cached candles" >&2
+  --parquet-dir "$AUTONOMY_PARQUET_DIR"
 
 python -m samosbor.cli --config "$AUTONOMY_CONFIG" nightly-autonomy --base-config "$BASE_CONFIG" --effective-output "$EFFECTIVE_CONFIG"

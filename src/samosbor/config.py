@@ -60,6 +60,7 @@ class StrategySection:
     require_breakout: bool = True
     atr_stop_multiple: float = 2.0
     reward_to_risk: float = 2.0
+    breakeven_trigger_pct: float = 0.0
     trailing_profit_trigger_rub: float = 0.0
     trailing_profit_lock_ratio: float = 0.0
     min_signal_strength: float = 0.0
@@ -128,6 +129,7 @@ class ResearchSection:
     require_breakout_values: list[bool] = field(default_factory=lambda: [True])
     atr_stop_multipliers: list[float] = field(default_factory=lambda: [1.5, 2.0])
     reward_to_risk_values: list[float] = field(default_factory=lambda: [1.5, 2.0, 2.5])
+    breakeven_trigger_pct_values: list[float] = field(default_factory=lambda: [0.0])
     trailing_profit_trigger_rub_values: list[float] = field(default_factory=lambda: [0.0])
     trailing_profit_lock_ratio_values: list[float] = field(default_factory=lambda: [0.0])
     trend_strength_values: list[float] = field(default_factory=lambda: [0.004, 0.006])

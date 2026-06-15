@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .autonomy.signal_feedback import signal_feedback_path
-from .config import AppConfig, load_config
+from .config import StrategySection, load_config
 
 
 def build_dashboard_payload(
@@ -34,6 +34,10 @@ def build_dashboard_payload(
     effective_runtime = _read_latest_json(
         autotune_dir / "effective-config",
         "effective_config.json",
+    )
+    active_config = _load_display_config(
+        config_path,
+        effective_config_path or effective_runtime.get("effective_config_path"),
     )
     entry_symbols = _read_latest_compatible_json(
         autotune_dir / "entry-symbols",
@@ -63,7 +67,11 @@ def build_dashboard_payload(
     feedback_payload = _read_json_file(feedback_path)
 
     portfolio = dict(state_payload.get("portfolio", {}))
-    positions = _positions_from_state(portfolio.get("positions", {}))
+    positions = _positions_from_state(
+        portfolio.get("positions", {}),
+        state_payload.get("events", []),
+        active_config.strategy,
+    )
     latest_summary = paper_cycle if paper_cycle else {}
     report_summary = paper_report.get("summary", {}) if paper_report else {}
     report_portfolio = paper_report.get("portfolio", {}) if paper_report else {}
@@ -99,6 +107,14 @@ def build_dashboard_payload(
             "latest_report_summary": report_summary,
             "latest_report_portfolio": report_portfolio,
             "positions": positions,
+            "strategy_state": {
+                "style": active_config.strategy.style,
+                "atr_stop_multiple": float(active_config.strategy.atr_stop_multiple),
+                "reward_to_risk": float(active_config.strategy.reward_to_risk),
+                "breakeven_trigger_pct": float(active_config.strategy.breakeven_trigger_pct),
+                "trailing_profit_trigger_rub": float(active_config.strategy.trailing_profit_trigger_rub),
+                "trailing_profit_lock_ratio": float(active_config.strategy.trailing_profit_lock_ratio),
+            },
             "signal_feedback": {
                 "pending_signals": len(feedback_payload.get("pending", [])),
                 "resolved_signals": len(feedback_payload.get("resolved", [])),
@@ -157,6 +173,7 @@ def render_dashboard_html(payload: dict[str, object]) -> str:
     latest_cycle = dict(runtime["latest_cycle"])
     latest_report_summary = dict(runtime["latest_report_summary"])
     latest_report_portfolio = dict(runtime["latest_report_portfolio"])
+    strategy_state = dict(runtime["strategy_state"])
     effective_runtime = dict(autonomy["effective_runtime"])
     entry_symbols = dict(autonomy["entry_symbols"])
     entry_schedule = dict(autonomy["entry_schedule"])
@@ -442,6 +459,12 @@ def render_dashboard_html(payload: dict[str, object]) -> str:
       white-space: pre-wrap;
       word-break: break-word;
     }}
+    .cell-note {{
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }}
     .table-wrap {{
       overflow-x: auto;
     }}
@@ -610,6 +633,12 @@ def render_dashboard_html(payload: dict[str, object]) -> str:
             <table>
               <tr><th>Mode</th><td>{_escape(str(config["paper_only_mode"]))}</td></tr>
               <tr><th>Live allowed</th><td>{_bool_text(bool(config["allow_live_trading"]))}</td></tr>
+              <tr><th>Style</th><td>{_escape(str(strategy_state.get("style", "-")))}</td></tr>
+              <tr><th>Reward / risk</th><td>{float(strategy_state.get("reward_to_risk", 0.0)):.2f}</td></tr>
+              <tr><th>ATR stop x</th><td>{float(strategy_state.get("atr_stop_multiple", 0.0)):.2f}</td></tr>
+              <tr><th>Break-even trigger</th><td>{float(strategy_state.get("breakeven_trigger_pct", 0.0)):.2f}%</td></tr>
+              <tr><th>Trailing trigger</th><td>{_fmt_money(float(strategy_state.get("trailing_profit_trigger_rub", 0.0)))}</td></tr>
+              <tr><th>Trailing lock</th><td>{float(strategy_state.get("trailing_profit_lock_ratio", 0.0)):.0%}</td></tr>
               <tr><th>Trading halted</th><td>{_bool_text(bool(latest_cycle.get("trading_halted", portfolio_state.get("trading_halted", False))))}</td></tr>
               <tr><th>Peak equity</th><td>{_fmt_money(float(portfolio_state.get("peak_equity_rub", 0.0)))}</td></tr>
               <tr><th>Last cycle</th><td class="mono">{_escape(_fmt_timestamp(str(latest_cycle.get("timestamp", ""))))}</td></tr>
@@ -954,22 +983,71 @@ def _normalize_hour_list(values: object) -> list[int]:
     return result
 
 
-def _positions_from_state(positions_payload: dict[str, Any]) -> list[dict[str, object]]:
+def _load_display_config(
+    config_path: str | Path,
+    effective_config_path: str | Path | None,
+):
+    candidates: list[Path] = []
+    if effective_config_path:
+        candidates.append(Path(effective_config_path).resolve())
+    candidates.append(Path(config_path).resolve())
+    for candidate in candidates:
+        if candidate.exists():
+            return load_config(candidate)
+    return load_config(config_path)
+
+
+def _positions_from_state(
+    positions_payload: dict[str, Any],
+    events_payload: object,
+    strategy: StrategySection,
+) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for symbol, position in sorted(positions_payload.items()):
+        direction = str(position.get("direction", ""))
+        quantity_lots = int(position.get("quantity_lots", 0))
+        entry_price = float(position.get("entry_price", 0.0))
+        current_price = float(position.get("current_price", 0.0))
+        stop_price = float(position.get("stop_price", 0.0))
+        take_profit = float(position.get("take_profit", 0.0))
+        instrument = position.get("instrument", {})
+        lot_size = int(instrument.get("lot_size", 1)) if isinstance(instrument, dict) else 1
+        quantity_units = max(0, quantity_lots * max(1, lot_size))
+        unrealized_pnl_rub = _position_unrealized_pnl(
+            direction,
+            entry_price,
+            current_price,
+            quantity_units,
+        )
+        stop_pct = _position_stop_pct(direction, entry_price, stop_price)
+        take_pct = _position_take_pct(direction, entry_price, take_profit)
+        reward_risk_ratio = (take_pct / stop_pct) if stop_pct > 0 else 0.0
+        trailing = _position_trailing_snapshot(
+            symbol,
+            position,
+            events_payload,
+            strategy,
+        )
         rows.append(
             {
                 "symbol": symbol,
-                "direction": str(position.get("direction", "")),
-                "quantity_lots": int(position.get("quantity_lots", 0)),
-                "entry_price": float(position.get("entry_price", 0.0)),
-                "current_price": float(position.get("current_price", 0.0)),
-                "stop_price": float(position.get("stop_price", 0.0)),
-                "take_profit": float(position.get("take_profit", 0.0)),
+                "direction": direction,
+                "quantity_lots": quantity_lots,
+                "entry_price": entry_price,
+                "current_price": current_price,
+                "stop_price": stop_price,
+                "take_profit": take_profit,
                 "margin_requirement": float(position.get("margin_requirement", 0.0)),
                 "signal_strength": float(position.get("signal_strength", 0.0)),
                 "opened_at": str(position.get("opened_at", "")),
                 "updated_at": str(position.get("updated_at", "")),
+                "lot_size": lot_size,
+                "quantity_units": quantity_units,
+                "unrealized_pnl_rub": unrealized_pnl_rub,
+                "stop_pct": stop_pct,
+                "take_pct": take_pct,
+                "reward_risk_ratio": reward_risk_ratio,
+                **trailing,
             }
         )
     return rows
@@ -986,8 +1064,11 @@ def _render_positions(rows: list[dict[str, object]]) -> str:
             f"<td>{int(row['quantity_lots'])}</td>"
             f"<td>{float(row['entry_price']):.6f}</td>"
             f"<td>{float(row['current_price']):.6f}</td>"
-            f"<td>{float(row['stop_price']):.6f}</td>"
-            f"<td>{float(row['take_profit']):.6f}</td>"
+            f"<td class=\"{_escape(_number_tone(float(row['unrealized_pnl_rub'])))}\">{_fmt_money(float(row['unrealized_pnl_rub']))}</td>"
+            f"<td>{_render_price_metric(float(row['stop_price']), float(row['stop_pct']))}</td>"
+            f"<td>{_render_price_metric(float(row['take_profit']), float(row['take_pct']))}</td>"
+            f"<td>{float(row['reward_risk_ratio']):.2f}</td>"
+            f"<td>{_render_trailing_cell(row)}</td>"
             f"<td>{_fmt_money(float(row['margin_requirement']))}</td>"
             "</tr>"
             for row in rows
@@ -995,7 +1076,7 @@ def _render_positions(rows: list[dict[str, object]]) -> str:
     )
     return (
         "<table><tr><th>Symbol</th><th>Dir</th><th>Lots</th><th>Entry</th><th>Current</th>"
-        "<th>Stop</th><th>Take</th><th>Margin</th></tr>"
+        "<th>PnL</th><th>Stop</th><th>Take</th><th>R/R</th><th>Trailing</th><th>Margin</th></tr>"
         f"{body}</table>"
     )
 
@@ -1108,6 +1189,187 @@ def _bool_text(value: bool) -> str:
 
 def _escape(value: str) -> str:
     return html.escape(value, quote=True)
+
+
+def _position_unrealized_pnl(
+    direction: str,
+    entry_price: float,
+    current_price: float,
+    quantity_units: int,
+) -> float:
+    if direction == "short":
+        return (entry_price - current_price) * quantity_units
+    return (current_price - entry_price) * quantity_units
+
+
+def _position_stop_pct(direction: str, entry_price: float, stop_price: float) -> float:
+    if entry_price <= 0:
+        return 0.0
+    if direction == "short":
+        return max(0.0, (stop_price - entry_price) / entry_price * 100.0)
+    return max(0.0, (entry_price - stop_price) / entry_price * 100.0)
+
+
+def _position_take_pct(direction: str, entry_price: float, take_profit: float) -> float:
+    if entry_price <= 0:
+        return 0.0
+    if direction == "short":
+        return max(0.0, (entry_price - take_profit) / entry_price * 100.0)
+    return max(0.0, (take_profit - entry_price) / entry_price * 100.0)
+
+
+def _position_trailing_snapshot(
+    symbol: str,
+    position: dict[str, Any],
+    events_payload: object,
+    strategy: StrategySection,
+) -> dict[str, object]:
+    direction = str(position.get("direction", ""))
+    quantity_lots = int(position.get("quantity_lots", 0))
+    entry_price = float(position.get("entry_price", 0.0))
+    current_price = float(position.get("current_price", 0.0))
+    stop_price = float(position.get("stop_price", 0.0))
+    instrument = position.get("instrument", {})
+    lot_size = int(instrument.get("lot_size", 1)) if isinstance(instrument, dict) else 1
+    quantity_units = max(0, quantity_lots * max(1, lot_size))
+    breakeven_trigger_pct = max(0.0, float(strategy.breakeven_trigger_pct))
+    trigger_rub = max(0.0, float(strategy.trailing_profit_trigger_rub))
+    lock_ratio = max(0.0, min(1.0, float(strategy.trailing_profit_lock_ratio)))
+    if quantity_units <= 0:
+        return {
+            "trailing_status": "disabled",
+            "trailing_mode": "",
+            "trailing_breakeven_trigger_pct": breakeven_trigger_pct,
+            "trailing_trigger_rub": trigger_rub,
+            "trailing_lock_ratio": lock_ratio,
+            "trailing_trigger_price": 0.0,
+            "trailing_first_lock_price": 0.0,
+            "trailing_remaining_rub": 0.0,
+            "trailing_protected_profit_rub": 0.0,
+            "trailing_activated_at": "",
+        }
+
+    unrealized_pnl_rub = _position_unrealized_pnl(direction, entry_price, current_price, quantity_units)
+    if breakeven_trigger_pct > 0:
+        trigger_move = entry_price * breakeven_trigger_pct / 100.0
+        trigger_rub = entry_price * quantity_units * breakeven_trigger_pct / 100.0
+        if direction == "short":
+            trigger_price = entry_price - trigger_move
+            first_lock_price = entry_price
+            protected_profit_rub = max(0.0, (entry_price - stop_price) * quantity_units)
+        else:
+            trigger_price = entry_price + trigger_move
+            first_lock_price = entry_price
+            protected_profit_rub = max(0.0, (stop_price - entry_price) * quantity_units)
+    else:
+        if trigger_rub <= 0 or lock_ratio <= 0:
+            return {
+                "trailing_status": "disabled",
+                "trailing_mode": "",
+                "trailing_breakeven_trigger_pct": breakeven_trigger_pct,
+                "trailing_trigger_rub": trigger_rub,
+                "trailing_lock_ratio": lock_ratio,
+                "trailing_trigger_price": 0.0,
+                "trailing_first_lock_price": 0.0,
+                "trailing_remaining_rub": 0.0,
+                "trailing_protected_profit_rub": 0.0,
+                "trailing_activated_at": "",
+            }
+        trigger_move = trigger_rub / quantity_units
+        first_lock_move = trigger_rub * lock_ratio / quantity_units
+        if direction == "short":
+            trigger_price = entry_price - trigger_move
+            first_lock_price = entry_price - first_lock_move
+            protected_profit_rub = max(0.0, (entry_price - stop_price) * quantity_units)
+        else:
+            trigger_price = entry_price + trigger_move
+            first_lock_price = entry_price + first_lock_move
+            protected_profit_rub = max(0.0, (stop_price - entry_price) * quantity_units)
+
+    trailing_event = _latest_trailing_event(
+        symbol,
+        str(position.get("opened_at", "")),
+        events_payload,
+    )
+    return {
+        "trailing_status": "active" if trailing_event or protected_profit_rub > 0 else "arming",
+        "trailing_mode": "breakeven-pct" if breakeven_trigger_pct > 0 else "rub-trigger",
+        "trailing_breakeven_trigger_pct": breakeven_trigger_pct,
+        "trailing_trigger_rub": trigger_rub,
+        "trailing_lock_ratio": lock_ratio,
+        "trailing_trigger_price": trigger_price,
+        "trailing_first_lock_price": first_lock_price,
+        "trailing_remaining_rub": max(0.0, trigger_rub - unrealized_pnl_rub),
+        "trailing_protected_profit_rub": protected_profit_rub,
+        "trailing_activated_at": str(trailing_event.get("timestamp", "")) if trailing_event else "",
+    }
+
+
+def _latest_trailing_event(
+    symbol: str,
+    opened_at: str,
+    events_payload: object,
+) -> dict[str, object]:
+    opened_timestamp = _parse_timestamp(opened_at)
+    if not isinstance(events_payload, list):
+        return {}
+    for item in reversed(events_payload):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("symbol", "")).strip().upper() != symbol.strip().upper():
+            continue
+        if str(item.get("action", "")) != "protect":
+            continue
+        if str(item.get("reason", "")) != "trailing-profit-protection":
+            continue
+        event_timestamp = _parse_timestamp(str(item.get("timestamp", "")))
+        if opened_timestamp is not None and event_timestamp is not None and event_timestamp < opened_timestamp:
+            continue
+        return item
+    return {}
+
+
+def _parse_timestamp(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _render_price_metric(price: float, pct: float) -> str:
+    return f"{price:.6f}<div class=\"cell-note mono\">{pct:.3f}%</div>"
+
+
+def _render_trailing_cell(row: dict[str, object]) -> str:
+    status = str(row.get("trailing_status", "disabled"))
+    if status == "disabled":
+        return "<span class=\"cell-note\">off</span>"
+
+    arm_price = float(row.get("trailing_trigger_price", 0.0))
+    first_lock_price = float(row.get("trailing_first_lock_price", 0.0))
+    trigger_rub = float(row.get("trailing_trigger_rub", 0.0))
+    lock_ratio = float(row.get("trailing_lock_ratio", 0.0))
+    protected_profit_rub = float(row.get("trailing_protected_profit_rub", 0.0))
+    activated_at = str(row.get("trailing_activated_at", ""))
+    breakeven_trigger_pct = float(row.get("trailing_breakeven_trigger_pct", 0.0))
+    if activated_at:
+        state_line = f"active since {_fmt_timestamp(activated_at)}"
+    else:
+        state_line = f"arming, left {_fmt_money(float(row.get('trailing_remaining_rub', 0.0)))}"
+    mode_line = (
+        f"breakeven {breakeven_trigger_pct:.2f}%"
+        if breakeven_trigger_pct > 0
+        else f"trigger {trigger_rub:.2f} RUB"
+    )
+    return (
+        f"<div class=\"cell-note\">{_escape(state_line)}</div>"
+        f"<div class=\"cell-note mono\">arm @ {arm_price:.6f}</div>"
+        f"<div class=\"cell-note mono\">first lock @ {first_lock_price:.6f}</div>"
+        f"<div class=\"cell-note mono\">{mode_line} / lock {lock_ratio:.0%}</div>"
+        f"<div class=\"cell-note mono\">protects {_escape(_fmt_money(protected_profit_rub))}</div>"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

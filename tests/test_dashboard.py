@@ -9,6 +9,117 @@ from samosbor.dashboard import build_dashboard_payload, render_dashboard_html
 
 
 class DashboardTest(unittest.TestCase):
+    def test_dashboard_exposes_breakeven_trailing_details_for_open_position(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            config_dir = root / "configs"
+            state_dir = root / "state"
+            runs_dir = root / "runs"
+            config_dir.mkdir(parents=True)
+            state_dir.mkdir(parents=True)
+            runs_dir.mkdir(parents=True)
+
+            config_path = config_dir / "paper.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[app]",
+                        'timezone = "Europe/Moscow"',
+                        "",
+                        "[tbank]",
+                        'account_name = "Акции"',
+                        "",
+                        "[data]",
+                        'source = "csv"',
+                        'csv_path = "data/demo.csv"',
+                        "",
+                        "[[data.instruments]]",
+                        'symbol = "SBER"',
+                        'instrument_type = "stock"',
+                        "lot_size = 1",
+                        "",
+                        "[strategy]",
+                        'style = "ema_adx_macd"',
+                        "breakeven_trigger_pct = 0.5",
+                        "trailing_profit_lock_ratio = 0.5",
+                        "",
+                        "[execution]",
+                        'mode = "local-paper"',
+                        "allow_live_trading = false",
+                        'state_path = "state/demo_state.json"',
+                        "",
+                        "[backtest]",
+                        "",
+                        "[reporting]",
+                        'output_dir = "runs"',
+                        "",
+                        "[research]",
+                        "",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            (state_dir / "demo_state.json").write_text(
+                json.dumps(
+                    {
+                        "portfolio": {
+                            "cash": 300000.0,
+                            "positions": {
+                                "SBER": {
+                                    "instrument": {
+                                        "symbol": "SBER",
+                                        "instrument_type": "stock",
+                                        "lot_size": 1,
+                                    },
+                                    "direction": "long",
+                                    "quantity_lots": 10,
+                                    "entry_price": 100.0,
+                                    "current_price": 101.0,
+                                    "stop_price": 100.25,
+                                    "take_profit": 103.0,
+                                    "margin_requirement": 0.0,
+                                    "signal_strength": 0.8,
+                                    "opened_at": "2026-06-15T09:00:00+00:00",
+                                    "updated_at": "2026-06-15T09:30:00+00:00",
+                                }
+                            },
+                        },
+                        "events": [
+                            {
+                                "timestamp": "2026-06-15T09:30:00+00:00",
+                                "symbol": "SBER",
+                                "action": "protect",
+                                "direction": "long",
+                                "stop_price": 100.25,
+                                "take_profit": 103.0,
+                                "reason": "trailing-profit-protection",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            (state_dir / "demo_state_signal_feedback.json").write_text(
+                json.dumps({"pending": [], "resolved": []}),
+                encoding="utf-8",
+            )
+
+            payload = build_dashboard_payload(config_path)
+            html = render_dashboard_html(payload)
+
+            position = payload["runtime"]["positions"][0]
+            self.assertEqual(position["trailing_status"], "active")
+            self.assertAlmostEqual(position["trailing_breakeven_trigger_pct"], 0.5)
+            self.assertAlmostEqual(position["trailing_trigger_price"], 100.5)
+            self.assertAlmostEqual(position["trailing_first_lock_price"], 100.0)
+            self.assertAlmostEqual(position["trailing_protected_profit_rub"], 2.5)
+            self.assertIn("breakeven 0.50%", html)
+            self.assertIn("Break-even trigger", html)
+
     def test_dashboard_reads_latest_samosbor_runtime_files(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
