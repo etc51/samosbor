@@ -140,7 +140,7 @@ SSL_TBANK_VERIFY=True
 - для futures paper-runtime через T-Bank API sizing использует официальное `GetFuturesMargin`, а `max_gross_exposure` трактуется как лимит суммарно зарезервированного ГО относительно equity
 - `samosbor-daily-review.timer` после торговой сессии строит daily report, candidate patch по `allowed_entry_hours`, candidate patch по параметрам стратегии, отдельный candidate patch по exit settings и candidate patch по `min_signal_strength`
 - daily review не меняет боевой TOML автоматически: он пишет артефакты в `runs/paper-reports`, `runs/autotune/entry-schedule`, `runs/autotune/entry-quality`, `runs/autotune/strategy` и `runs/autotune/exits`
-- `paper-cycle` теперь работает через производный `configs/server_tbank_cnyrubf_premium.effective.toml`, который пересобирается из последних autotune-артефактов и сохраняет `local-paper` / `allow_live_trading = false`
+- `paper-cycle` теперь работает через производный `configs/server_tbank_cnyrubf_premium.effective.toml`, который каждый раз пересобирается именно из базового server TOML плюс последних autotune-артефактов и сохраняет `local-paper` / `allow_live_trading = false`
 
 Активная целевая функция autotune:
 
